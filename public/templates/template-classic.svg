@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1131" width="1600" height="1131">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fdfbf4"/>
+      <stop offset="100%" stop-color="#f6efdd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1131" fill="url(#bg)"/>
+  <!-- Marco exterior -->
+  <rect x="40" y="40" width="1520" height="1051" fill="none" stroke="#8a6d3b" stroke-width="4"/>
+  <rect x="60" y="60" width="1480" height="1011" fill="none" stroke="#8a6d3b" stroke-width="1.5"/>
+  <!-- Ornamentos esquinas -->
+  <g fill="#8a6d3b">
+    <circle cx="90" cy="90" r="6"/>
+    <circle cx="1510" cy="90" r="6"/>
+    <circle cx="90" cy="1041" r="6"/>
+    <circle cx="1510" cy="1041" r="6"/>
+  </g>
+  <!-- Encabezado -->
+  <text x="800" y="240" text-anchor="middle" font-family="Georgia, serif" font-size="36" letter-spacing="8" fill="#8a6d3b">CERTIFICADO</text>
+  <text x="800" y="300" text-anchor="middle" font-family="Georgia, serif" font-size="72" font-weight="bold" fill="#2b2b2b">de Finalización</text>
+  <text x="800" y="380" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#6b5b3e">Se otorga el presente certificado a</text>
+  <!-- Línea decorativa bajo el nombre (el nombre se dibuja dinámicamente) -->
+  <line x1="400" y1="660" x2="1200" y2="660" stroke="#8a6d3b" stroke-width="1"/>
+  <text x="800" y="740" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#6b5b3e">por completar con éxito el curso impartido.</text>
+  <!-- Firma -->
+  <line x1="550" y1="950" x2="1050" y2="950" stroke="#6b5b3e" stroke-width="1"/>
+  <text x="800" y="990" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#6b5b3e">Firma · Dirección</text>
+</svg>

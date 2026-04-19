@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1131" width="1600" height="1131">
+  <defs>
+    <linearGradient id="bgNature" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ecfdf5"/>
+      <stop offset="100%" stop-color="#f7f5ee"/>
+    </linearGradient>
+    <pattern id="leaves" patternUnits="userSpaceOnUse" width="80" height="80">
+      <path d="M40 10 C55 25, 55 55, 40 70 C25 55, 25 25, 40 10 Z" fill="#065f46" opacity="0.08"/>
+    </pattern>
+  </defs>
+  <rect width="1600" height="1131" fill="url(#bgNature)"/>
+
+  <!-- Bandas decorativas con hojas -->
+  <rect x="0" y="0" width="1600" height="140" fill="url(#leaves)"/>
+  <rect x="0" y="991" width="1600" height="140" fill="url(#leaves)"/>
+
+  <!-- Marco interior -->
+  <rect x="80" y="180" width="1440" height="771" fill="none" stroke="#065f46" stroke-width="2"/>
+
+  <!-- Hojas ornamentales en las esquinas del marco -->
+  <g fill="#065f46" opacity="0.6">
+    <path d="M80 180 C120 200, 140 240, 140 280 C100 260, 80 220, 80 180 Z"/>
+    <path d="M1520 180 C1480 200, 1460 240, 1460 280 C1500 260, 1520 220, 1520 180 Z"/>
+    <path d="M80 951 C120 931, 140 891, 140 851 C100 871, 80 911, 80 951 Z"/>
+    <path d="M1520 951 C1480 931, 1460 891, 1460 851 C1500 871, 1520 911, 1520 951 Z"/>
+  </g>
+
+  <!-- Textos -->
+  <text x="800" y="300" text-anchor="middle" font-family="Georgia, serif" font-size="30" letter-spacing="8" fill="#065f46">~ CERTIFICADO ~</text>
+  <text x="800" y="380" text-anchor="middle" font-family="Georgia, serif" font-size="60" font-style="italic" fill="#1f2937">de Participación</text>
+  <text x="800" y="460" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#4b5563">Se otorga con agradecimiento a</text>
+
+  <!-- Línea bajo el nombre -->
+  <line x1="400" y1="700" x2="1200" y2="700" stroke="#065f46" stroke-width="1" stroke-dasharray="4 6"/>
+
+  <text x="800" y="780" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#4b5563">por su entusiasmo y participación en el taller.</text>
+
+  <!-- Sello hoja -->
+  <g transform="translate(800,900)">
+    <circle r="40" fill="none" stroke="#065f46" stroke-width="2"/>
+    <path d="M0 -20 C15 -5, 15 15, 0 30 C-15 15, -15 -5, 0 -20 Z" fill="#065f46"/>
+  </g>
+</svg>
