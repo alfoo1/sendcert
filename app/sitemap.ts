@@ -1,12 +1,21 @@
 import type { MetadataRoute } from 'next';
+import { getPublishedPosts } from '@/lib/blog';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
-// Sitemap con rutas estáticas — extender cuando se añadan nuevas páginas/posts
-export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
+// The sitemap re-renders on the same ISR schedule as the blog index.
+export const revalidate = 86400;
 
-  return [
+/**
+ * Sitemap generator. Includes static routes (landing, app, blog index) plus
+ * one entry per currently-published blog post. Scheduled posts are omitted
+ * until their publishDate so we don't leak a preview URL via the sitemap.
+ */
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const now = new Date();
+  const posts = await getPublishedPosts(now);
+
+  const staticEntries: MetadataRoute.Sitemap = [
     {
       url: `${siteUrl}/`,
       lastModified: now,
@@ -20,16 +29,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
-      url: `${siteUrl}/blog/como-crear-certificados-digitales`,
+      url: `${siteUrl}/blog`,
       lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    },
-    {
-      url: `${siteUrl}/blog/enviar-certificados-por-email`,
-      lastModified: now,
-      changeFrequency: 'monthly',
-      priority: 0.6,
+      changeFrequency: 'weekly',
+      priority: 0.7,
     },
   ];
+
+  const postEntries: MetadataRoute.Sitemap = posts.map((post) => ({
+    url: `${siteUrl}/blog/${post.slug}`,
+    lastModified: new Date(post.publishDate),
+    changeFrequency: 'monthly',
+    priority: 0.6,
+  }));
+
+  return [...staticEntries, ...postEntries];
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { TextConfig } from './ConfigStep';
 import type { Recipient } from './StudentsStep';
 import type { EmailConfig } from './EmailStep';
+import type { ExtraField } from '@/lib/extraFields';
 import { isValidEmail } from '@/lib/validation';
 import WaitlistModal from './WaitlistModal';
 import FeedbackModal from './FeedbackModal';
@@ -13,12 +14,28 @@ type Props = {
   templateDataUrl: string | null;
   templateId: string | null;
   textConfig: TextConfig;
+  extraFields: ExtraField[];
   recipients: Recipient[];
   emailConfig: EmailConfig;
   // Navigational callbacks fired from the success screen.
   onResetAll: () => void;
   onResetAudience: () => void;
 };
+
+// Converts UI-side extra fields to the wire shape the API expects.
+// Empty values are filtered out — no sense in asking pdf-lib to render "".
+function toApiExtraFields(fields: ExtraField[]) {
+  return fields
+    .filter((f) => f.value.trim().length > 0)
+    .map((f) => ({
+      text: f.value,
+      x: f.x,
+      y: f.y,
+      fontSize: f.fontSize,
+      color: f.color,
+      fontFamily: f.fontFamily,
+    }));
+}
 
 type ResultEntry = {
   email: string;
@@ -112,6 +129,7 @@ export default function PreviewStep({
   templateDataUrl,
   templateId,
   textConfig,
+  extraFields,
   recipients,
   emailConfig,
   onResetAll,
@@ -159,6 +177,7 @@ export default function PreviewStep({
             templateId,
             name: previewName,
             ...textConfig,
+            extraFields: toApiExtraFields(extraFields),
           }),
         });
         if (!res.ok) throw new Error('Could not generate preview');
@@ -187,6 +206,7 @@ export default function PreviewStep({
     textConfig.fontSize,
     textConfig.color,
     textConfig.fontFamily,
+    extraFields,
   ]);
 
   const validRecipients = recipients.filter(
@@ -231,6 +251,7 @@ export default function PreviewStep({
           recipients: validRecipients,
           textConfig,
           emailConfig,
+          extraFields: toApiExtraFields(extraFields),
         }),
       });
 
@@ -328,6 +349,7 @@ export default function PreviewStep({
           templateId,
           textConfig,
           emailConfig,
+          extraFields: toApiExtraFields(extraFields),
         }),
       });
       const data = await res.json().catch(() => ({}));

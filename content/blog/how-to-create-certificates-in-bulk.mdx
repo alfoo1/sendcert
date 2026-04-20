@@ -1,0 +1,105 @@
+---
+slug: how-to-create-certificates-in-bulk
+title: How to Create and Send Certificates in Bulk (100+ Recipients)
+description: The clean workflow for generating and emailing hundreds of personalized certificates at once — without opening a hundred browser tabs.
+publishDate: 2026-06-01
+tags: [certificates, bulk, automation]
+---
+
+A course with 100 students is not ten times harder than a course with 10 students — it is about thirty times harder, because every per-student task now takes a serious chunk of your week. Certificates are a good example. At a minute per certificate, 100 of them is over an hour and a half. At the end of a cohort you do not have an hour and a half.
+
+The fix is not working faster. It is changing the workflow from "do it once per student" to "do it once for the whole batch." Here is how.
+
+## Why the manual approach scales badly
+
+Let's name the specific operations that have to happen for each student:
+
+1. Generate a PDF with their name.
+2. Save it with a sensible filename.
+3. Attach it to an email.
+4. Write or paste the email body.
+5. Address it to them.
+6. Click send.
+
+Doing each of these by hand is fine for one person. It is survivable for ten. At a hundred, it becomes a data-entry shift where any mistake results in a re-send. If you have ever started a batch at 9 PM because you forgot it was the end of the cohort, you know the feeling.
+
+## The bulk workflow in three ingredients
+
+The cleaner approach requires exactly three things:
+
+- A **template** (one design, one file).
+- A **CSV** of your recipients (name, email, one row per person).
+- A **tool** that merges the two and sends them out.
+
+Once those three are in place, a batch of 100 is the same amount of work as a batch of 10.
+
+## Step 1: your template
+
+Your template should have a visible, empty space where the student's name is going to land. This is the only element that changes per student — everything else stays the same.
+
+Design tips:
+
+- Leave plenty of vertical space around the name. People's names vary wildly in length.
+- Use a font that renders cleanly at large sizes. Serifs look classy; sans-serifs look modern.
+- Export at 1200×900 pixels or larger. Smaller than that and the PDF will look grainy if anyone tries to print it.
+
+If you do not want to start from scratch, [pick one of these professional templates](/blog/certificate-templates-online-courses) and tweak the colors.
+
+## Step 2: your CSV
+
+A CSV is just a text file where each line is a row and columns are separated by commas. Open a plain text editor or Google Sheets, make two columns:
+
+```
+name,email
+Maria Johnson,maria@example.com
+John Martinez,john@example.com
+```
+
+Most LMS platforms (Teachable, Kajabi, Thinkific, Teachery, LearnDash) have an "Export students" button that gives you a CSV. Usually you want to trim the columns down to just `name` and `email` before uploading.
+
+Validate before you send:
+
+- Every row has both a name and an email.
+- Every email has an `@` and a domain.
+- No duplicate emails unless you actually want to send the same person twice.
+
+A good tool flags invalid rows automatically. If yours does not, do the check in a spreadsheet first.
+
+## Step 3: the merge and send
+
+This is where a bulk tool earns its keep. With [SendCert](/app), you:
+
+1. Upload the template.
+2. Place the name on the preview.
+3. Upload the CSV.
+4. Write the email body with a `{{name}}` variable.
+5. Send.
+
+The tool generates one PDF per student, personalizes the email, and sends everything one after another from a proper branded sender. A batch of 100 takes a few minutes to complete end-to-end.
+
+## Handling failures
+
+No delivery system is perfect. Some emails bounce because the address is wrong, a mailbox is full, or a domain is blocking sends. A good tool should:
+
+- Show you exactly which rows failed and why.
+- Let you export the failed rows as their own CSV.
+- Let you fix those rows and retry without re-sending to everyone who already got theirs.
+
+This matters more than it sounds. Without a retry path, you end up tracking failures in a spreadsheet and manually re-sending, which wipes out the time you saved.
+
+## A word on email deliverability
+
+When you send 100+ emails in a short window, two things matter:
+
+1. **Your sender domain's reputation.** Gmail and Outlook mark unknown senders as suspicious. A tool that sends from a verified domain (SPF, DKIM, DMARC all aligned) does not hit that wall.
+2. **Rate limiting.** Some SMTP providers throttle you after a certain number of emails per minute. Bulk tools that time-out their sends gracefully will deliver more reliably than a naive loop.
+
+Your personal Gmail account will hit a cap around 500 recipients per day and aggressive sending can get the account flagged. For 100+ sends at once, use a real email infrastructure.
+
+## Make it repeatable
+
+Once you have the flow working, save the template and the email copy somewhere easy to find. Future cohorts become a 5-minute job: export the fresh CSV, upload, send. That's it.
+
+For the next step — making this truly hands-off — see [how to automate certificate delivery](/blog/how-to-automate-certificate-delivery) and [how to send 100 certificates at once without losing your mind](/blog/how-to-send-100-certificates-at-once).
+
+[Create your first certificate free →](/app)

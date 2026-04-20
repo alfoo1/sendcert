@@ -4,6 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { PRESET_TEMPLATES } from '@/lib/templates';
 import type { CertificateContent } from '@/lib/certificateContent';
+import {
+  emptyExtraField,
+  type ExtraField,
+  type FontFamily,
+} from '@/lib/extraFields';
 import CertificateRenderer, {
   CERT_WIDTH,
   CERT_HEIGHT,
@@ -30,6 +35,11 @@ type Props = {
   // captures that copy (not the visible scaled one) so the rendered bitmap
   // is always 1200x900 regardless of the viewport.
   certificateRef: React.RefObject<HTMLDivElement>;
+  // Repeatable text overlays (signature, date, custom fields…) drawn by
+  // pdf-lib on top of the captured template image. Each is draggable on the
+  // preview independently.
+  extraFields: ExtraField[];
+  onExtraFieldsChange: (fields: ExtraField[]) => void;
 };
 
 const SAMPLE_NAME = 'Maria Johnson';
@@ -38,7 +48,11 @@ const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 // Drag state describes which handle (if any) is being dragged. The offset
 // captured on mousedown keeps the cursor pinned to the same point on the
 // dragged element as it moves.
-type DragTarget = null | 'name' | 'logo';
+type DragTarget =
+  | null
+  | { kind: 'name' }
+  | { kind: 'logo' }
+  | { kind: 'field'; id: string };
 type DragOffset = { dxPct: number; dyPct: number };
 
 export default function ConfigStep({
@@ -49,6 +63,8 @@ export default function ConfigStep({
   content,
   onContentChange,
   certificateRef,
+  extraFields,
+  onExtraFieldsChange,
 }: Props) {
   const isBuiltInTemplate = Boolean(templateId && !templateDataUrl);
   const customImageSrc = templateDataUrl;
@@ -97,17 +113,26 @@ export default function ConfigStep({
     if (!dragTarget) return;
 
     function handleMove(e: MouseEvent) {
+      if (!dragTarget) return;
       const pct = pointToPercent(e);
       if (!pct) return;
-      if (dragTarget === 'name') {
+      if (dragTarget.kind === 'name') {
         // Name uses center anchor, so no offset needed for the drag feel.
         onConfigChange({ ...textConfig, x: pct.x, y: pct.y });
-      } else if (dragTarget === 'logo' && content) {
+      } else if (dragTarget.kind === 'logo' && content) {
         // Logo uses top-left anchor. Apply the mousedown offset so the cursor
         // stays glued to the same point on the logo during the drag.
         const nextX = Math.max(0, Math.min(100, pct.x - dragOffset.dxPct));
         const nextY = Math.max(0, Math.min(100, pct.y - dragOffset.dyPct));
         onContentChange({ ...content, logoX: nextX, logoY: nextY });
+      } else if (dragTarget.kind === 'field') {
+        // Extra fields use center anchor like the recipient name.
+        const id = dragTarget.id;
+        onExtraFieldsChange(
+          extraFields.map((f) =>
+            f.id === id ? { ...f, x: pct.x, y: pct.y } : f,
+          ),
+        );
       }
     }
     function handleUp() {
@@ -120,12 +145,29 @@ export default function ConfigStep({
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-  }, [dragTarget, dragOffset, textConfig, content, onConfigChange, onContentChange, pointToPercent]);
+  }, [
+    dragTarget,
+    dragOffset,
+    textConfig,
+    content,
+    extraFields,
+    onConfigChange,
+    onContentChange,
+    onExtraFieldsChange,
+    pointToPercent,
+  ]);
 
   function handleNameMouseDown(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    setDragTarget('name');
+    setDragTarget({ kind: 'name' });
+    setDragOffset({ dxPct: 0, dyPct: 0 });
+  }
+
+  function handleFieldMouseDown(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragTarget({ kind: 'field', id });
     setDragOffset({ dxPct: 0, dyPct: 0 });
   }
 
@@ -140,7 +182,24 @@ export default function ConfigStep({
       dxPct: pct.x - content.logoX,
       dyPct: pct.y - content.logoY,
     });
-    setDragTarget('logo');
+    setDragTarget({ kind: 'logo' });
+  }
+
+  // Extra-field mutators used by the sidebar.
+  function updateField<K extends keyof ExtraField>(
+    id: string,
+    key: K,
+    value: ExtraField[K],
+  ) {
+    onExtraFieldsChange(
+      extraFields.map((f) => (f.id === id ? { ...f, [key]: value } : f)),
+    );
+  }
+  function addField() {
+    onExtraFieldsChange([...extraFields, emptyExtraField()]);
+  }
+  function removeField(id: string) {
+    onExtraFieldsChange(extraFields.filter((f) => f.id !== id));
   }
 
   // Click on empty area places the name (legacy behavior). Ignores clicks while
@@ -194,7 +253,8 @@ export default function ConfigStep({
     maxFiles: 1,
   });
 
-  const isDraggingCursor = dragTarget === 'name' ? 'cursor-grabbing' : 'cursor-crosshair';
+  const isDraggingCursor =
+    dragTarget && dragTarget.kind !== 'logo' ? 'cursor-grabbing' : 'cursor-crosshair';
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
@@ -266,7 +326,7 @@ export default function ConfigStep({
               <div
                 onMouseDown={handleNameMouseDown}
                 className={`absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap px-2 py-1 transition-shadow ${
-                  dragTarget === 'name'
+                  dragTarget?.kind === 'name'
                     ? 'cursor-grabbing ring-2 ring-brand-500 ring-offset-2'
                     : 'cursor-grab hover:ring-2 hover:ring-brand-300 hover:ring-offset-2'
                 }`}
@@ -290,6 +350,42 @@ export default function ConfigStep({
                 className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-600 ring-2 ring-white"
                 style={{ left: `${textConfig.x}%`, top: `${textConfig.y}%` }}
               />
+
+              {/* Draggable overlays, one per extra field. Same center-anchor
+                  pattern as the recipient name; font is scaled so the preview
+                  matches the eventual pdf-lib render. */}
+              {extraFields.map((field) => {
+                const isActiveDrag =
+                  dragTarget?.kind === 'field' && dragTarget.id === field.id;
+                return (
+                  <div
+                    key={field.id}
+                    onMouseDown={(e) => handleFieldMouseDown(e, field.id)}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap px-2 py-1 transition-shadow ${
+                      isActiveDrag
+                        ? 'cursor-grabbing ring-2 ring-brand-500 ring-offset-2'
+                        : 'cursor-grab hover:ring-2 hover:ring-brand-300 hover:ring-offset-2'
+                    }`}
+                    style={{
+                      left: `${field.x}%`,
+                      top: `${field.y}%`,
+                      fontSize: `${field.fontSize * scale}px`,
+                      color: field.color,
+                      fontFamily:
+                        field.fontFamily === 'times'
+                          ? 'Georgia, serif'
+                          : field.fontFamily === 'courier'
+                            ? 'ui-monospace, Menlo, monospace'
+                            : 'Helvetica, Arial, sans-serif',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {field.value || (
+                      <span className="italic text-gray-400">{field.label}</span>
+                    )}
+                  </div>
+                );
+              })}
             </>
           )}
 
@@ -599,6 +695,117 @@ export default function ConfigStep({
             built-in templates in step 1.
           </div>
         )}
+
+        {/* Section 3: repeatable extra text overlays (signature, date, …). */}
+        <CollapsibleSection
+          title="Additional fields"
+          open={true}
+          onToggle={() => {}}
+        >
+          {extraFields.length === 0 && (
+            <p className="text-xs text-gray-500">
+              No fields yet. Use the button below to add one.
+            </p>
+          )}
+          {extraFields.map((field) => (
+            <div
+              key={field.id}
+              className="rounded-lg border border-gray-200 bg-white p-3 space-y-2"
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={field.label}
+                  onChange={(e) => updateField(field.id, 'label', e.target.value)}
+                  placeholder="Label"
+                  className="flex-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeField(field.id)}
+                  aria-label="Remove field"
+                  className="rounded-md p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+                  title="Remove this field"
+                >
+                  🗑
+                </button>
+              </div>
+              <input
+                type="text"
+                value={field.value}
+                onChange={(e) => updateField(field.id, 'value', e.target.value)}
+                placeholder="Value shown on the certificate"
+                className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-600">X (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    value={field.x.toFixed(1)}
+                    onChange={(e) => updateField(field.id, 'x', Number(e.target.value))}
+                    className="mt-0.5 block w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-600">Y (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    value={field.y.toFixed(1)}
+                    onChange={(e) => updateField(field.id, 'y', Number(e.target.value))}
+                    className="mt-0.5 block w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-600">Size</label>
+                  <input
+                    type="number"
+                    min={8}
+                    max={120}
+                    step={1}
+                    value={field.fontSize}
+                    onChange={(e) =>
+                      updateField(field.id, 'fontSize', Number(e.target.value))
+                    }
+                    className="mt-0.5 block w-full rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={field.color}
+                  onChange={(e) => updateField(field.id, 'color', e.target.value)}
+                  className="h-8 w-10 cursor-pointer rounded border border-gray-300"
+                />
+                <select
+                  value={field.fontFamily}
+                  onChange={(e) =>
+                    updateField(field.id, 'fontFamily', e.target.value as FontFamily)
+                  }
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                >
+                  <option value="helvetica">Helvetica</option>
+                  <option value="times">Times</option>
+                  <option value="courier">Courier</option>
+                </select>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addField}
+            className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-brand-400 hover:bg-brand-50/50 hover:text-brand-700"
+          >
+            + Add field
+          </button>
+        </CollapsibleSection>
       </div>
     </div>
   );

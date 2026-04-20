@@ -45,10 +45,7 @@ export default function LandingPage() {
             SendCert
           </Link>
           <nav className="flex items-center gap-6 text-sm">
-            <Link
-              href="/blog/como-crear-certificados-digitales"
-              className="text-gray-600 hover:text-gray-900"
-            >
+            <Link href="/blog" className="text-gray-600 hover:text-gray-900">
               Blog
             </Link>
             <Link

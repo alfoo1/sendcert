@@ -14,6 +14,10 @@ import {
   getDefaultContent,
   type CertificateContent,
 } from '@/lib/certificateContent';
+import {
+  defaultExtraFields,
+  type ExtraField,
+} from '@/lib/extraFields';
 
 // Main wizard. No auth, no DB — everything lives in component state during the
 // session. The only server round-trips are PDF generation and email delivery.
@@ -35,6 +39,11 @@ export default function SendCertApp() {
 
   // Step 2 also: certificate content (built-in templates only). null for custom uploads.
   const [content, setContent] = useState<CertificateContent | null>(null);
+
+  // Extra text overlays drawn on top of the certificate (signature, date, etc.).
+  // Seeded with sensible defaults so the certificate has a usable signature +
+  // date out of the box regardless of template choice.
+  const [extraFields, setExtraFields] = useState<ExtraField[]>(defaultExtraFields);
 
   // When the user edits a built-in template we snapshot the DOM to a flat image
   // just before leaving step 2. That image replaces the preset's static file
@@ -72,6 +81,7 @@ export default function SendCertApp() {
       fontFamily: 'helvetica',
     });
     setRenderedTemplateDataUrl(null);
+    setExtraFields(defaultExtraFields());
     setRecipients([]);
     setEmailConfig(DEFAULT_EMAIL_CONFIG);
   }
@@ -274,6 +284,8 @@ export default function SendCertApp() {
               content={content}
               onContentChange={setContent}
               certificateRef={certificateRef}
+              extraFields={extraFields}
+              onExtraFieldsChange={setExtraFields}
             />
           )}
           {step === 3 && (
@@ -293,6 +305,7 @@ export default function SendCertApp() {
               templateDataUrl={effectiveTemplateDataUrl}
               templateId={effectiveTemplateId}
               textConfig={textConfig}
+              extraFields={extraFields}
               recipients={recipients}
               emailConfig={emailConfig}
               onResetAll={resetAll}

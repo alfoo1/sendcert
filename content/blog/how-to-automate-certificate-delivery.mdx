@@ -1,0 +1,100 @@
+---
+slug: how-to-automate-certificate-delivery
+title: How to Automate Certificate Delivery for Your Online Course
+description: Stop hand-sending certificates. Here's how to automate generation and delivery so every graduate gets theirs the moment they finish the course.
+publishDate: 2026-07-01
+tags: [automation, certificates, workflow]
+---
+
+Manual certificate delivery is one of those tasks that feels small until you add up the hours you spend on it every month. Five minutes per student, thirty students per cohort, two cohorts a month — that is five hours every month typing names into PDFs. Five hours you could spend making the course itself better.
+
+The good news is that certificate delivery is one of the most automatable parts of running an online course. Here is how to think about it and how to actually set it up.
+
+## The three levels of automation
+
+Not every course needs a fully hands-off system. Match the level of automation to what you actually run.
+
+### Level 1: batch sending at the end of a cohort
+
+If your course is cohort-based — everyone starts on the same day, everyone finishes on the same day — the simplest automation is just "do the whole batch at once."
+
+Workflow:
+
+1. Cohort finishes Friday.
+2. You export the student list as a CSV.
+3. You upload template + CSV to a bulk sending tool.
+4. You hit send. Done.
+
+Total hands-on time: maybe five minutes. If you are currently hand-sending, this is 95% of the upgrade for 5% of the setup effort. The [bulk certificate guide](/blog/how-to-create-certificates-in-bulk) walks through the specifics.
+
+### Level 2: scheduled weekly or monthly runs
+
+If your course is self-paced — students finish whenever — the next level is running the export on a schedule. Every Monday, pull the list of anyone who completed last week, and send.
+
+Workflow:
+
+1. Automate the export from your LMS with a Zap, Make scenario, or simple script.
+2. Drop the CSV into your bulk tool.
+3. Manually click send, or script that too.
+
+You are still touching it once a week, but the per-student work has disappeared. This is where most solo course creators land, and it is good enough.
+
+### Level 3: fully hands-off (event-driven)
+
+If your course has a constant firehose of completions — dozens per day — you want event-driven delivery. The moment a student is marked complete in your LMS, a certificate gets generated and emailed.
+
+Workflow:
+
+1. Your LMS fires a "course completed" webhook.
+2. The webhook hits an endpoint that generates a PDF with the student's name.
+3. The endpoint sends the email.
+
+You never touch it. Students get their certificate within minutes of finishing, which is exactly when the dopamine is highest and the LinkedIn post is most likely.
+
+The downside is that this takes a bit of engineering — usually a webhook receiver (Zapier, Make, a tiny serverless function) hitting a certificate API. Worth it if you are at scale; overkill if you have three cohorts a year.
+
+## What you save by automating
+
+The obvious win is time. The less-obvious wins:
+
+- **Speed.** Students receive the certificate while the course is still fresh in their mind, which is when they are most likely to share it.
+- **Consistency.** Every certificate has the same design, the same language, the same quality. No "the one I made at 11 PM looks different from the others."
+- **Fewer mistakes.** Computers do not misspell names by typing too fast. Your mistakes will come from the CSV, not the send step.
+- **Brand polish.** An automated, branded-sender email feels like a real company. A hand-sent Gmail feels like a hobby project.
+
+## What to automate, specifically
+
+Five parts of the pipeline can be automated independently:
+
+1. **Student list collection.** LMS export → CSV.
+2. **Certificate generation.** CSV + template → one PDF per student.
+3. **Email composition.** `{{name}}` templating into the subject and body.
+4. **Email delivery.** Actually sending each message from a verified sender.
+5. **Failure handling.** Tracking bounces, invalid emails, and retrying.
+
+A good certificate tool collapses 2–5 into one step. You bring the CSV (step 1), the tool handles the rest.
+
+## Tools to do it with
+
+A few options depending on the level you are going for:
+
+- **Manual bulk sending:** [SendCert](/app), Canva Pro + your email client, or a mail-merge Google Docs script.
+- **Scheduled sending:** Zapier/Make connecting your LMS export to your bulk tool.
+- **Event-driven:** a webhook from your LMS to a certificate API, or a custom script wrapping a library like pdf-lib.
+
+For most creators, you want the middle option. Full event-driven automation is powerful but it's also one more system to maintain. Scheduled bulk sends with a good tool are 80% of the benefit for 10% of the complexity.
+
+## How to actually start
+
+Pick the smallest possible version and do it this week. Do not design the perfect long-term system on paper first. Concretely:
+
+1. Export your current student list as a CSV.
+2. Upload it to a bulk sender along with your template.
+3. Send a test to yourself.
+4. Send to everyone.
+
+If you can do that once, you have already replaced your manual process. Iterate from there — add Zapier once the flow is proven, add webhooks only when the volume justifies it.
+
+For adjacent reading: [how to email a certificate to each student automatically](/blog/email-certificate-to-students-automatically) covers the email-specific pieces in more depth.
+
+[Create your first certificate free →](/app)

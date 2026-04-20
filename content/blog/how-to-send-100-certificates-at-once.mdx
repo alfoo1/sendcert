@@ -1,0 +1,108 @@
+---
+slug: how-to-send-100-certificates-at-once
+title: How to Send 100 Certificates at Once Without Losing Your Mind
+description: The time math of sending 100 certificates manually versus in bulk, and the step-by-step for doing it the fast way.
+publishDate: 2026-08-01
+tags: [bulk, certificates, time-saving]
+---
+
+Let's start with the math, because people underestimate how long "sending 100 certificates" actually takes when done by hand.
+
+One minute per certificate — generating the PDF, attaching it, writing the email, addressing it, sending — is optimistic. Even at that pace, 100 certificates is 100 minutes. An hour and forty minutes of pure data-entry work, with zero breaks, which nobody actually does without getting up for coffee and losing their place.
+
+Realistic time per certificate when done manually: 90 seconds to 2 minutes. So 100 certificates is actually 2.5 to 3 hours. Plus the ~4 certificates that will come out wrong (misspelled names, attached to wrong email) and need to be redone and re-apologized for.
+
+There is a better way, and it takes about five minutes regardless of how many certificates you are sending.
+
+## Why the linear approach breaks
+
+The manual process is linear: each certificate is its own independent task, starting from scratch. That means:
+
+- You cannot cache work between certificates. Every one is full-effort.
+- Context switching kills you. You make more mistakes at certificate 60 than at certificate 10 because your brain is fried.
+- Even perfect execution takes as long as the slowest per-certificate step, times 100.
+
+Bulk sending changes the shape of the problem. Instead of 100 individual tasks, you do three batch tasks:
+
+1. Prepare the template (once).
+2. Prepare the recipient list (once).
+3. Click send (once).
+
+Each of these is independent of the number of recipients. Sending to 5 takes the same effort as sending to 500.
+
+## The three-step bulk process
+
+### Step 1: prepare the template (60 seconds)
+
+Open your certificate design — either one you made in Canva or one of the built-in templates. Leave visible blank space where the student's name should appear.
+
+If you do not already have a template, [the free templates collection](/blog/certificate-templates-online-courses) has several that look professional out of the box.
+
+### Step 2: prepare the CSV (60 seconds)
+
+Export your student list from your LMS as CSV. You want two columns:
+
+```
+name,email
+Maria Johnson,maria@example.com
+John Martinez,john@example.com
+```
+
+If your LMS exports extra columns (enrollment date, completion score, whatever), delete them. Keep it clean.
+
+### Step 3: merge and send (3 minutes)
+
+Upload both files to a bulk sending tool. Preview the result. Send yourself a test. Hit send to everyone.
+
+The total elapsed time is less than five minutes, and most of it is the actual sending (which happens in the background while you move on with your day).
+
+## What 100 simultaneous emails looks like
+
+Under the hood, here's what the tool is doing:
+
+1. For each row in the CSV, generate a PDF with the student's name drawn at the right position.
+2. For each PDF, compose an email with the student-specific subject and body (`{{name}}` replaced).
+3. Attach the PDF, address the email, send via SMTP.
+4. Track which ones succeeded and which failed.
+5. Report the result.
+
+You see a progress bar ticking up — "Sending 23 of 100…" — and a few minutes later, it's done.
+
+## Failures will happen
+
+Out of 100 emails, one to three will typically fail to deliver:
+
+- Typos in the email address.
+- Mailbox full.
+- Corporate firewall blocking unknown senders.
+- Student's domain flagging the sender as spam.
+
+A good bulk tool should:
+
+- Show you exactly which rows failed and with what error.
+- Let you download the failed rows as their own CSV.
+- Let you fix the emails (correct typos, etc.) and retry only those, without re-sending to the 97 who already got their certificate.
+
+Do not try to retry by hand. It's the same trap — you'll end up in a spreadsheet manually tracking who got what.
+
+## About sender reputation
+
+Sending 100 emails in ten minutes from your personal Gmail is a good way to get flagged. Gmail's daily send limit is 500 recipients per day for free accounts, and they rate-limit aggressively below that if the pattern looks like bulk marketing.
+
+Use a tool that sends from a real, verified sender domain (SPF, DKIM, DMARC all properly configured). Your deliverability goes up and you stop worrying about your Gmail getting temporarily locked.
+
+## Scaling up further
+
+This workflow works the same for 100, 500, or 5,000 recipients. The bottleneck shifts at higher volumes:
+
+- **< 100:** send it all at once, done in minutes.
+- **100–500:** same workflow, takes a bit longer as the loop runs.
+- **500+:** you may want to split into smaller batches for better deliverability signals, or use a tool that can schedule staggered sends.
+
+For automation ideas beyond "do it manually once per cohort," see [how to automate certificate delivery](/blog/how-to-automate-certificate-delivery).
+
+## Reclaim the hours
+
+The point of bulk sending is not the features — it's the time you get back. Three hours a month that was going to data entry, going back into teaching, content creation, actual rest. Compounded over a year of cohorts, that's a full working week.
+
+[Create your first certificate free →](/app) — the first 50 sends per month are free.

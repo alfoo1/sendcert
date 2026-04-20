@@ -15,6 +15,15 @@ export const runtime = 'nodejs';
 // Single send — no need for a long timeout.
 export const maxDuration = 60;
 
+type ExtraFieldPayload = {
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+};
+
 type SendTestBody = {
   testName: string;
   testEmail: string;
@@ -31,6 +40,7 @@ type SendTestBody = {
     subject: string;
     body: string;
   };
+  extraFields?: ExtraFieldPayload[];
 };
 
 /**
@@ -47,7 +57,7 @@ type SendTestBody = {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as SendTestBody;
-    const { testName, testEmail, templateDataUrl, templateId, textConfig, emailConfig } = body;
+    const { testName, testEmail, templateDataUrl, templateId, textConfig, emailConfig, extraFields } = body;
 
     const name = (testName ?? '').trim();
     const email = (testEmail ?? '').trim();
@@ -109,6 +119,7 @@ export async function POST(req: NextRequest) {
       fontSize: textConfig.fontSize,
       color: textConfig.color,
       fontFamily: textConfig.fontFamily,
+      extraFields,
     });
 
     const subject = renderTemplate(emailConfig.subject, { name });

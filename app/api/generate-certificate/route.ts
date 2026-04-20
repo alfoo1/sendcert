@@ -13,14 +13,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
-      templateDataUrl, // string | null — si el usuario subió su propia imagen
-      templateId,      // string | null — si eligió un preset
+      templateDataUrl, // Custom-uploaded template (data URL)
+      templateId,      // Built-in preset id
       name,
       x,
       y,
       fontSize,
       color,
       fontFamily,
+      extraFields,
     } = body as {
       templateDataUrl?: string;
       templateId?: string;
@@ -30,6 +31,14 @@ export async function POST(req: NextRequest) {
       fontSize: number;
       color: string;
       fontFamily?: 'helvetica' | 'times' | 'courier';
+      extraFields?: Array<{
+        text: string;
+        x: number;
+        y: number;
+        fontSize: number;
+        color: string;
+        fontFamily?: 'helvetica' | 'times' | 'courier';
+      }>;
     };
 
     if (!name || typeof name !== 'string') {
@@ -78,6 +87,7 @@ export async function POST(req: NextRequest) {
       fontSize,
       color,
       fontFamily,
+      extraFields,
     });
 
     return new NextResponse(Buffer.from(pdfBytes), {

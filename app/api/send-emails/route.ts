@@ -17,6 +17,15 @@ export const maxDuration = 300;
 
 type Recipient = { name: string; email: string };
 
+type ExtraFieldPayload = {
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  fontFamily?: 'helvetica' | 'times' | 'courier';
+};
+
 type SendEmailsBody = {
   templateDataUrl?: string;
   templateId?: string;
@@ -32,6 +41,7 @@ type SendEmailsBody = {
     subject: string;
     body: string;
   };
+  extraFields?: ExtraFieldPayload[];
 };
 
 type ResultEntry = {
@@ -72,7 +82,7 @@ type ServerEvent =
  */
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as SendEmailsBody;
-  const { templateDataUrl, templateId, recipients, textConfig, emailConfig } = body;
+  const { templateDataUrl, templateId, recipients, textConfig, emailConfig, extraFields } = body;
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
     return NextResponse.json({ error: 'Recipient list is empty.' }, { status: 400 });
@@ -177,6 +187,7 @@ export async function POST(req: NextRequest) {
             fontSize: textConfig.fontSize,
             color: textConfig.color,
             fontFamily: textConfig.fontFamily,
+            extraFields,
           });
 
           const subject = renderTemplate(emailConfig.subject, { name });
