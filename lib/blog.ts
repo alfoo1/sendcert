@@ -45,11 +45,19 @@ async function readPostFile(filename: string): Promise<BlogPost | null> {
     return null;
   }
 
+  // YAML auto-parses unquoted dates (e.g. `publishDate: 2026-04-20`) into JS
+  // Date objects. `String(date)` then yields a `Mon Apr 20 2026...` form that
+  // breaks our ISO-based string comparison. Normalize to a true ISO string.
+  const publishDate =
+    data.publishDate instanceof Date
+      ? data.publishDate.toISOString()
+      : String(data.publishDate);
+
   return {
     slug: String(data.slug),
     title: String(data.title),
     description: String(data.description),
-    publishDate: String(data.publishDate),
+    publishDate,
     tags: Array.isArray(data.tags) ? data.tags.map(String) : undefined,
     content,
     readingMinutes: estimateReadingMinutes(content),
