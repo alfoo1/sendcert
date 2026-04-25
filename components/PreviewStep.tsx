@@ -42,6 +42,8 @@ type ResultEntry = {
   name: string;
   status: 'ok' | 'error';
   error?: string;
+  // Populated for logged-in users when the certificate was persisted.
+  verifyId?: string;
 };
 
 type SendState =
@@ -52,12 +54,14 @@ type SendState =
       completed: number;
       startedAt: number;
       results: ResultEntry[];
+      loggedIn: boolean;
     }
   | {
       phase: 'done';
       sent: number;
       failed: number;
       results: ResultEntry[];
+      loggedIn: boolean;
     }
   | { phase: 'error'; message: string };
 
@@ -240,6 +244,7 @@ export default function PreviewStep({
       completed: 0,
       startedAt,
       results: [],
+      loggedIn: false, // refined when the 'start' event arrives
     });
     try {
       const res = await fetch('/api/send-emails', {
@@ -259,7 +264,7 @@ export default function PreviewStep({
         const data = await res.json().catch(() => ({}));
         setSendState({ phase: 'idle' });
         setWaitlistMessage(
-          data.error ?? "You've reached the 50-email free limit for this month.",
+          data.error ?? "You've reached the 150-email free limit for this month.",
         );
         setWaitlistOpen(true);
         return;
@@ -280,14 +285,16 @@ export default function PreviewStep({
       let total = validRecipients.length;
       let sent = 0;
       let failed = 0;
+      let loggedIn = false;
 
       for await (const event of parseEventStream<
-        | { type: 'start'; total: number }
+        | { type: 'start'; total: number; loggedIn?: boolean }
         | { type: 'progress'; completed: number; total: number; result: ResultEntry }
         | { type: 'done'; sent: number; failed: number }
       >(res.body)) {
         if (event.type === 'start') {
           total = event.total;
+          loggedIn = Boolean(event.loggedIn);
         } else if (event.type === 'progress') {
           accumulated.push(event.result);
           if (event.result.status === 'ok') sent += 1;
@@ -298,6 +305,7 @@ export default function PreviewStep({
             completed: event.completed,
             startedAt,
             results: [...accumulated],
+            loggedIn,
           });
         } else if (event.type === 'done') {
           setSendState({
@@ -305,6 +313,7 @@ export default function PreviewStep({
             sent: event.sent,
             failed: event.failed,
             results: [...accumulated],
+            loggedIn,
           });
         }
       }
@@ -313,7 +322,13 @@ export default function PreviewStep({
       // state from what we accumulated so the UI never gets stuck in 'sending'.
       setSendState((prev) => {
         if (prev.phase === 'sending') {
-          return { phase: 'done', sent, failed, results: accumulated };
+          return {
+            phase: 'done',
+            sent,
+            failed,
+            results: accumulated,
+            loggedIn: prev.loggedIn,
+          };
         }
         return prev;
       });
@@ -422,6 +437,8 @@ export default function PreviewStep({
           {sendState.phase === 'done' && sendState.sent > 0 && sendState.failed === 0 ? (
             <SuccessPanel
               sent={sendState.sent}
+              loggedIn={sendState.loggedIn}
+              results={sendState.results}
               onResetAll={onResetAll}
               onResetAudience={onResetAudience}
             />
@@ -623,13 +640,23 @@ function SendingPanel({
 
 function SuccessPanel({
   sent,
+  loggedIn,
+  results,
   onResetAll,
   onResetAudience,
 }: {
   sent: number;
+  loggedIn: boolean;
+  results: ResultEntry[];
   onResetAll: () => void;
   onResetAudience: () => void;
 }) {
+  const verifyHost =
+    typeof window !== 'undefined'
+      ? window.location.host
+      : 'sendcert.org';
+  const verified = results.filter((r) => r.status === 'ok' && r.verifyId);
+
   return (
     <div className="py-6 text-center">
       {/* Animated check — CSS keyframes (scale + stroke draw) */}
@@ -688,6 +715,57 @@ function SuccessPanel({
       <p className="mt-1 text-sm text-gray-600">
         Your recipients should be receiving their emails in the next few minutes.
       </p>
+
+      {/* For logged-in users, surface the verify URL of every saved cert so
+          they can copy/share it. Guests see a banner inviting them to sign
+          up — this is the only place we nudge auth in the core flow. */}
+      {loggedIn && verified.length > 0 && (
+        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-left">
+          <p className="text-sm font-semibold text-gray-900">Verification URLs</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Anyone can verify these certificates publicly. Share the URL with
+            recipients or include it in the email body.
+          </p>
+          <ul className="mt-3 max-h-48 space-y-1 overflow-auto text-xs">
+            {verified.map((r) => (
+              <li
+                key={r.verifyId}
+                className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5 font-mono"
+              >
+                <span className="truncate text-gray-700">
+                  {r.name} → {verifyHost}/verify/{r.verifyId}
+                </span>
+                <a
+                  href={`/verify/${r.verifyId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 text-brand-600 underline"
+                >
+                  open
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!loggedIn && (
+        <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-4 text-left text-sm">
+          <p className="font-semibold text-gray-900">
+            Want a verification URL for each certificate?
+          </p>
+          <p className="mt-1 text-gray-700">
+            Create a free account and every cert you send gets a public
+            sendcert.org/verify/CERT-… URL recipients can share.
+          </p>
+          <a
+            href="/login"
+            className="mt-3 inline-block rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-700"
+          >
+            Create a free account →
+          </a>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
         <button

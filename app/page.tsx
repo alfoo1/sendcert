@@ -51,6 +51,9 @@ export default function LandingPage() {
             <Link href="/faq" className="text-gray-600 hover:text-gray-900">
               FAQ
             </Link>
+            <Link href="/login" className="text-gray-600 hover:text-gray-900">
+              Sign in
+            </Link>
             <Link
               href="/app"
               className="rounded-lg bg-brand-600 px-4 py-2 font-medium text-white hover:bg-brand-700"

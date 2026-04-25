@@ -70,7 +70,7 @@ data/
 
 ## Free tier and rate limiting
 
-Each client IP can send up to `RATE_LIMIT_PER_MONTH` certificates per calendar month (default 50). When the limit is hit, the API returns HTTP 429 and the UI opens a modal asking for the user's email so we can notify them when premium plans launch. Signups are appended to `data/waitlist.json`.
+Each client IP can send up to `RATE_LIMIT_PER_MONTH` certificates per calendar month (default 150). When the limit is hit, the API returns HTTP 429 and the UI opens a modal asking for the user's email so we can notify them when premium plans launch. Signups are appended to `data/waitlist.json`.
 
 ## Sample CSV
 

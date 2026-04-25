@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server';
 // A horizontally scaled deployment would need Redis or similar.
 const counters = new Map<string, number>();
 
-const DEFAULT_LIMIT = Number(process.env.RATE_LIMIT_PER_MONTH ?? 50);
+const DEFAULT_LIMIT = Number(process.env.RATE_LIMIT_PER_MONTH ?? 150);
 
 /**
  * Extracts the client IP from the request.

@@ -29,7 +29,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Is SendCert free?',
     answer:
-      'Yes. SendCert is free for up to 50 certificates per IP address per month — enough to cover most course cohorts and workshops without any payment. There is no free trial, no credit card required, and no hidden paywall on core features. If you regularly exceed the monthly limit we plan to offer premium tiers in the future; you can leave your email to be notified.',
+      'Yes. SendCert is free for up to 150 certificates per IP address per month — enough to cover most course cohorts and workshops without any payment. There is no free trial, no credit card required, and no hidden paywall on core features. If you regularly exceed the monthly limit we plan to offer premium tiers in the future; you can leave your email to be notified.',
   },
   {
     question: 'Do I need to create an account?',
@@ -39,7 +39,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'How many certificates can I send?',
     answer:
-      'The free tier allows 50 certificates per calendar month, counted by your client IP address. The cap resets automatically on the first of each month. If you hit the limit you will see a modal explaining the cap, with an option to leave your email for a notification when premium plans with higher limits launch. For one-off larger batches, reach out and we can usually accommodate.',
+      'The free tier allows 150 certificates per calendar month, counted by your client IP address. The cap resets automatically on the first of each month. If you hit the limit you will see a modal explaining the cap, with an option to leave your email for a notification when premium plans with higher limits launch. For one-off larger batches, reach out and we can usually accommodate.',
   },
   {
     question: 'What file formats are supported for templates?',
@@ -166,7 +166,7 @@ export default function FaqPage() {
           </p>
           <p className="mt-1 text-sm text-gray-600">
             The best way to find out if SendCert fits your workflow is to try
-            it — free for your first 50 recipients, no sign-up.
+            it — free for your first 150 recipients, no sign-up.
           </p>
           <Link
             href="/app"
