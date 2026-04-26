@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   createBrowserSupabaseClient,
@@ -22,6 +22,22 @@ export default function LoginPage() {
   >({ phase: 'idle' });
 
   const supabaseConfigured = isSupabaseConfigured();
+
+  // Surface missing Supabase config to the developer console in dev — but
+  // never to the end user. A visible yellow box on the login page would be
+  // confusing for visitors and noisy for the owner once they've moved on.
+  useEffect(() => {
+    if (
+      !supabaseConfigured &&
+      typeof process !== 'undefined' &&
+      process.env.NODE_ENV !== 'production'
+    ) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[SendCert] Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local to enable login.',
+      );
+    }
+  }, [supabaseConfigured]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,20 +74,13 @@ export default function LoginPage() {
           SendCert
         </Link>
 
-        <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Sign in or create your account
+        </h1>
         <p className="mt-1 text-sm text-gray-600">
-          We&apos;ll email you a one-time login link. No password needed.
+          Enter your email and we&apos;ll send you a magic link. No password
+          needed. New here? We&apos;ll create your account automatically.
         </p>
-
-        {!supabaseConfigured && (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            Supabase isn&apos;t configured yet. Set
-            <code className="mx-1 rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_URL</code>
-            and
-            <code className="mx-1 rounded bg-amber-100 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
-            in <code className="rounded bg-amber-100 px-1">.env.local</code>.
-          </div>
-        )}
 
         {status.phase === 'sent' ? (
           <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
@@ -101,7 +110,7 @@ export default function LoginPage() {
               disabled={!supabaseConfigured || status.phase === 'sending'}
               className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {status.phase === 'sending' ? 'Sending…' : 'Send me a login link'}
+              {status.phase === 'sending' ? 'Sending…' : 'Send me a magic link →'}
             </button>
             {status.phase === 'error' && (
               <p className="text-xs text-red-600">{status.message}</p>
