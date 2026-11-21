@@ -1,12 +1,33 @@
 'use client';
 
-import { forwardRef, type CSSProperties } from 'react';
-import type { CertificateContent } from '@/lib/certificateContent';
+import {
+  forwardRef,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
+import { getDefaultContent, type CertificateContent } from '@/lib/certificateContent';
+import { PRESET_TEMPLATES, type NameFont } from '@/lib/templates';
+import { sans, serif } from '@/components/landing/fonts';
 
-// Fixed natural dimensions — html2canvas captures at this size so the PDF
-// preview is consistent regardless of viewport width.
-export const CERT_WIDTH = 1200;
-export const CERT_HEIGHT = 900;
+// Natural size of every template: US Letter landscape at 1200px wide.
+// html2canvas captures at this size, so the PDF matches the preview.
+import { CERT_HEIGHT, CERT_WIDTH } from '@/lib/certificateSize';
+
+export { CERT_HEIGHT, CERT_WIDTH };
+
+const SANS = sans.style.fontFamily;
+const SERIF = serif.style.fontFamily;
+
+// Layout grid shared by all templates. The recipient name (drawn by pdf-lib,
+// not here) is centered at 50% / 50%; the default Signature and Date overlays
+// sit at x = 25% / 75%, y = 85%, right above the signature lines.
+const BODY_BOTTOM = 410;
+const NAME_RULE_TOP = 514;
+const FOOTER_TOP = 534;
+const SIGNATURE_LINE_TOP = 812;
 
 type Props = {
   templateId: string;
@@ -21,7 +42,7 @@ type Props = {
  *
  * Intentionally does NOT render the recipient's name — that text is drawn
  * server-side by pdf-lib (vector quality) on top of the captured image.
- * A wrapper component overlays a visual placeholder for WYSIWYG feedback.
+ * Uses inline styles only so html2canvas reproduces it exactly.
  */
 const CertificateRenderer = forwardRef<HTMLDivElement, Props>(function CertificateRenderer(
   { templateId, content, onLogoMouseDown },
@@ -34,43 +55,122 @@ const CertificateRenderer = forwardRef<HTMLDivElement, Props>(function Certifica
     overflow: 'hidden',
     backgroundColor: '#ffffff',
     // Everything inside is decorative. The logo is the only interactive piece
-    // and opts back in with `pointer-events: auto` on its own img. Without
-    // this, the full-bleed text container (inset:0) eats pointer events before
-    // they can reach the logo sitting behind it.
+    // and opts back in with `pointer-events: auto` on its own img.
     pointerEvents: 'none',
   };
 
-  const Inner =
-    templateId === 'modern' ? ModernLayout : templateId === 'nature' ? NatureLayout : ClassicLayout;
+  const Layout = LAYOUTS[templateId] ?? ElegantLayout;
 
   return (
     <div ref={ref} style={baseStyle} data-certificate-root>
-      <Inner content={content} onLogoMouseDown={onLogoMouseDown} />
+      <Layout content={content} />
+      <Logo content={content} onMouseDown={onLogoMouseDown} />
     </div>
   );
 });
 
 export default CertificateRenderer;
 
-// ---------- LOGO ----------
+// ---------- Thumbnail ----------
 
-type LogoProps = {
-  content: CertificateContent;
-  onMouseDown?: (e: React.MouseEvent) => void;
+const NAME_FONTS: Record<NameFont, string> = {
+  helvetica: 'Helvetica, Arial, sans-serif',
+  times: '"Times New Roman", Times, serif',
+  courier: '"Courier New", Courier, monospace',
 };
 
-// Logo is positioned by its top-left corner at (logoX%, logoY%). Max height 60
-// preserves aspect ratio via CSS. When a mouse-down handler is provided the
-// logo becomes draggable in the live editor.
-function Logo({ content, onMouseDown }: LogoProps) {
+/**
+ * Scaled-down live render of a built-in template with a sample name, used by
+ * the template picker and the landing gallery so thumbnails always match the
+ * real design.
+ */
+export function TemplateThumbnail({
+  templateId,
+  sampleName = 'Maria Johnson',
+}: {
+  templateId: string;
+  sampleName?: string;
+}) {
+  const preset = PRESET_TEMPLATES.find((p) => p.id === templateId);
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setScale(el.clientWidth / CERT_WIDTH);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      aria-hidden
+      style={{
+        position: 'relative',
+        width: '100%',
+        aspectRatio: `${CERT_WIDTH} / ${CERT_HEIGHT}`,
+        overflow: 'hidden',
+        backgroundColor: '#ffffff',
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: CERT_WIDTH,
+          height: CERT_HEIGHT,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          // Hidden until measured, so the server render never flashes a
+          // full-size certificate.
+          visibility: scale ? 'visible' : 'hidden',
+        }}
+      >
+        <CertificateRenderer templateId={templateId} content={getDefaultContent(templateId)} />
+        {preset && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${preset.defaultX}%`,
+              top: `${preset.defaultY}%`,
+              transform: 'translate(-50%, -50%)',
+              whiteSpace: 'nowrap',
+              fontSize: preset.defaultFontSize,
+              fontWeight: 700,
+              color: preset.defaultColor,
+              fontFamily: NAME_FONTS[preset.defaultFontFamily],
+            }}
+          >
+            {sampleName}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Logo ----------
+
+// Logo is positioned by its top-left corner at (logoX%, logoY%). Height is a
+// percent of the certificate, width follows the image's aspect ratio. When a
+// mouse-down handler is provided the logo becomes draggable in the editor.
+function Logo({
+  content,
+  onMouseDown,
+}: {
+  content: CertificateContent;
+  onMouseDown?: (e: React.MouseEvent) => void;
+}) {
   if (!content.logoDataUrl) return null;
   const style: CSSProperties = {
     position: 'absolute',
     left: `${content.logoX}%`,
     top: `${content.logoY}%`,
-    // Height scales with the certificate (logoSize is % of cert height).
-    // Width follows the image aspect ratio, capped at 40% of cert width so
-    // very wide logos can't dominate the layout.
     height: `${content.logoSize}%`,
     width: 'auto',
     maxWidth: '40%',
@@ -80,7 +180,6 @@ function Logo({ content, onMouseDown }: LogoProps) {
       ? {
           cursor: 'grab',
           pointerEvents: 'auto',
-          // Dashed outline signals the logo is draggable.
           outline: '2px dashed rgba(79, 70, 229, 0.45)',
           outlineOffset: '4px',
         }
@@ -94,206 +193,556 @@ function Logo({ content, onMouseDown }: LogoProps) {
       style={style}
       draggable={false}
       onMouseDown={onMouseDown}
-      // Prevent the click from bubbling to the container, which would otherwise
-      // interpret it as a "place the recipient name here" gesture.
+      // Keep the click from reaching the container, which would move the name.
       onClick={onMouseDown ? (e) => e.stopPropagation() : undefined}
     />
   );
 }
 
-type LayoutProps = {
-  content: CertificateContent;
-  onLogoMouseDown?: (e: React.MouseEvent) => void;
-};
+// ---------- Shared building blocks ----------
 
-// ---------- CLASSIC ----------
-function ClassicLayout({ content, onLogoMouseDown }: LayoutProps) {
-  const accent = content.accentColor;
+/** Turns the user's hex accent into a translucent tint; falls back to the raw value. */
+function tint(hex: string, alpha: number): string {
+  const raw = hex.trim().replace('#', '');
+  const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  if (!/^[0-9a-f]{6}$/i.test(full)) return hex;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/** Centered text block whose top edge sits at `top`. */
+function TopText({
+  top,
+  inset = 150,
+  style,
+  children,
+}: {
+  top: number;
+  inset?: number;
+  style: CSSProperties;
+  children: ReactNode;
+}) {
   return (
     <div
       style={{
-        width: '100%',
-        height: '100%',
-        background: 'linear-gradient(135deg, #fdfbf4 0%, #f6efdd 100%)',
-        padding: 40,
-        boxSizing: 'border-box',
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        color: '#2b2b2b',
-        position: 'relative',
+        position: 'absolute',
+        top,
+        left: inset,
+        right: inset,
+        textAlign: 'center',
+        ...style,
       }}
     >
-      <div style={{ position: 'absolute', inset: 40, border: `4px solid ${accent}` }} />
-      <div style={{ position: 'absolute', inset: 60, border: `1.5px solid ${accent}` }} />
+      {children}
+    </div>
+  );
+}
+
+/** Centered text block that ends at `bottom`, so longer text grows upward, away from the name. */
+function BottomText({ style, children }: { style: CSSProperties; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: CERT_HEIGHT - BODY_BOTTOM,
+        left: 170,
+        right: 170,
+        textAlign: 'center',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Horizontal rule centered on the certificate. */
+function Rule({ top, width, height = 1, color, radius = 0 }: {
+  top: number;
+  width: number;
+  height?: number;
+  color: string;
+  radius?: number;
+}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top,
+        left: (CERT_WIDTH - width) / 2,
+        width,
+        height,
+        backgroundColor: color,
+        borderRadius: radius,
+      }}
+    />
+  );
+}
+
+/** Two signature lines at 25% / 75% with the signer and date captions under them. */
+function SignatureRow({
+  content,
+  lineColor,
+  lineWeight = 1,
+  caption,
+}: {
+  content: CertificateContent;
+  lineColor: string;
+  lineWeight?: number;
+  caption: CSSProperties;
+}) {
+  const columns = [
+    { center: CERT_WIDTH * 0.25, label: content.signerName },
+    { center: CERT_WIDTH * 0.75, label: content.dateText },
+  ];
+  return (
+    <>
+      {columns.map((col) => (
+        <div
+          key={col.center}
+          style={{
+            position: 'absolute',
+            top: SIGNATURE_LINE_TOP,
+            left: col.center - 150,
+            width: 300,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ height: lineWeight, backgroundColor: lineColor }} />
+          {col.label && <div style={{ marginTop: 10, ...caption }}>{col.label}</div>}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function Circle({ left, top, size, style }: {
+  left: number;
+  top: number;
+  size: number;
+  style: CSSProperties;
+}) {
+  return (
+    <div
+      style={{ position: 'absolute', left, top, width: size, height: size, borderRadius: '50%', ...style }}
+    />
+  );
+}
+
+type LayoutProps = { content: CertificateContent };
+
+// ---------- Elegant: navy frame, gold details, serif title ----------
+function ElegantLayout({ content }: LayoutProps) {
+  const accent = content.accentColor;
+  const gold = '#b8913a';
+  const cornerOffset = 66;
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 26, border: `12px solid ${accent}` }} />
+      <div style={{ position: 'absolute', inset: 50, border: `2px solid ${gold}` }} />
+      <div style={{ position: 'absolute', inset: 57, border: `1px solid ${gold}` }} />
       {[
-        { top: 88, left: 88 },
-        { top: 88, right: 88 },
-        { bottom: 88, left: 88 },
-        { bottom: 88, right: 88 },
+        { top: cornerOffset, left: cornerOffset },
+        { top: cornerOffset, right: cornerOffset },
+        { bottom: cornerOffset, left: cornerOffset },
+        { bottom: cornerOffset, right: cornerOffset },
       ].map((pos, i) => (
         <div
           key={i}
           style={{
             position: 'absolute',
-            width: 12,
-            height: 12,
-            borderRadius: '50%',
-            background: accent,
+            width: 10,
+            height: 10,
+            backgroundColor: gold,
+            transform: 'rotate(45deg)',
             ...pos,
           }}
         />
       ))}
 
-      <Logo content={content} onMouseDown={onLogoMouseDown} />
-
+      <TopText
+        top={118}
+        style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, letterSpacing: '0.32em', textTransform: 'uppercase', color: accent }}
+      >
+        {content.institutionName}
+      </TopText>
+      <TopText
+        top={176}
+        style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, letterSpacing: '0.42em', textTransform: 'uppercase', color: gold }}
+      >
+        {content.subtitleLabel}
+      </TopText>
+      <TopText
+        top={198}
+        style={{ fontFamily: SERIF, fontSize: 68, fontWeight: 600, lineHeight: 1.1, color: accent }}
+      >
+        {content.certificateTitle}
+      </TopText>
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          top: 296,
+          left: 0,
+          right: 0,
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
           justifyContent: 'center',
-          padding: '120px 120px',
-          textAlign: 'center',
+          alignItems: 'center',
+          gap: 14,
         }}
       >
-        <div style={{ fontSize: 20, color: '#6b5b3e', letterSpacing: 4, textTransform: 'uppercase' }}>
-          {content.institutionName}
-        </div>
-        <div style={{ fontSize: 28, color: accent, letterSpacing: 8, marginTop: 30 }}>
-          {content.subtitleLabel}
-        </div>
-        <div style={{ fontSize: 56, fontWeight: 'bold', marginTop: 10, lineHeight: 1.1 }}>
-          {content.certificateTitle}
-        </div>
-        <div style={{ fontSize: 22, color: '#6b5b3e', marginTop: 40 }}>{content.bodyText}</div>
-        <div style={{ height: 120 }} />
-        <div style={{ width: 600, borderTop: `1px solid ${accent}`, marginTop: 4 }} />
-        <div style={{ fontSize: 20, color: '#6b5b3e', marginTop: 40 }}>{content.footerText}</div>
-        <div style={{ marginTop: 60, fontSize: 18, color: '#6b5b3e' }}>{content.signerName}</div>
+        <div style={{ width: 90, height: 1, backgroundColor: gold }} />
+        <div style={{ width: 9, height: 9, backgroundColor: gold, transform: 'rotate(45deg)' }} />
+        <div style={{ width: 90, height: 1, backgroundColor: gold }} />
       </div>
-    </div>
+
+      <BottomText style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 22, color: '#4b5563' }}>
+        {content.bodyText}
+      </BottomText>
+      <Rule top={NAME_RULE_TOP} width={560} color={gold} />
+      <TopText
+        top={FOOTER_TOP}
+        inset={260}
+        style={{ fontFamily: SANS, fontSize: 17, lineHeight: 1.55, color: '#4b5563' }}
+      >
+        {content.footerText}
+      </TopText>
+
+      <SignatureRow
+        content={content}
+        lineColor={accent}
+        caption={{ fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#6b7280' }}
+      />
+    </>
   );
 }
 
-// ---------- MODERN ----------
-function ModernLayout({ content, onLogoMouseDown }: LayoutProps) {
+// ---------- Minimal: white space, thin frame, one accent ----------
+function MinimalLayout({ content }: LayoutProps) {
   const accent = content.accentColor;
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: '#ffffff',
-        fontFamily: 'Inter, "Helvetica Neue", Arial, sans-serif',
-        color: '#111827',
-        position: 'relative',
-      }}
-    >
-      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 24, background: accent }} />
-      <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 24, background: accent }} />
+    <>
+      <div style={{ position: 'absolute', inset: 36, border: '1px solid #e5e7eb' }} />
+      <Rule top={110} width={48} height={4} radius={2} color={accent} />
 
-      <Logo content={content} onMouseDown={onLogoMouseDown} />
+      <TopText
+        top={136}
+        style={{ fontFamily: SANS, fontSize: 14, fontWeight: 600, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#6b7280' }}
+      >
+        {content.institutionName}
+      </TopText>
+      <TopText
+        top={186}
+        style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, letterSpacing: '0.34em', textTransform: 'uppercase', color: accent }}
+      >
+        {content.subtitleLabel}
+      </TopText>
+      <TopText
+        top={210}
+        style={{ fontFamily: SANS, fontSize: 52, fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em', color: '#111827' }}
+      >
+        {content.certificateTitle}
+      </TopText>
 
-      <div style={{ position: 'absolute', inset: 0, padding: '200px 160px', boxSizing: 'border-box' }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: accent, letterSpacing: 6 }}>
-          {renderModernSubtitle(content)}
-        </div>
-        <div style={{ fontSize: 56, fontWeight: 800, marginTop: 20, lineHeight: 1.1 }}>
-          {content.certificateTitle}
-        </div>
-        <div style={{ fontSize: 20, color: '#6b7280', marginTop: 30 }}>{content.bodyText}</div>
-        <div style={{ height: 130 }} />
-        <div style={{ width: '100%', borderTop: `2px solid #e5e7eb`, marginTop: 4 }} />
-        <div style={{ fontSize: 18, color: '#6b7280', marginTop: 30 }}>{content.footerText}</div>
+      <BottomText style={{ fontFamily: SANS, fontSize: 19, color: '#6b7280' }}>
+        {content.bodyText}
+      </BottomText>
+      <Rule top={NAME_RULE_TOP} width={460} color="#d1d5db" />
+      <TopText
+        top={FOOTER_TOP}
+        inset={260}
+        style={{ fontFamily: SANS, fontSize: 17, lineHeight: 1.55, color: '#6b7280' }}
+      >
+        {content.footerText}
+      </TopText>
+
+      <SignatureRow
+        content={content}
+        lineColor="#d1d5db"
+        caption={{ fontFamily: SANS, fontSize: 12, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#9ca3af' }}
+      />
+    </>
+  );
+}
+
+// ---------- Bold: large color shapes, heavy sans title ----------
+function BoldLayout({ content }: LayoutProps) {
+  const accent = content.accentColor;
+  return (
+    <>
+      <Circle left={920} top={-200} size={480} style={{ backgroundColor: accent }} />
+      <Circle left={868} top={232} size={84} style={{ border: `3px solid ${tint(accent, 0.35)}` }} />
+      <Circle left={-260} top={660} size={400} style={{ backgroundColor: tint(accent, 0.12) }} />
+
+      <TopText
+        top={120}
+        style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, letterSpacing: '0.3em', textTransform: 'uppercase', color: accent }}
+      >
+        {content.institutionName}
+      </TopText>
+      <TopText
+        top={172}
+        style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, letterSpacing: '0.4em', textTransform: 'uppercase', color: '#94a3b8' }}
+      >
+        {content.subtitleLabel}
+      </TopText>
+      <TopText
+        top={196}
+        inset={240}
+        style={{ fontFamily: SANS, fontSize: 66, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.03em', color: '#0f172a' }}
+      >
+        {content.certificateTitle}
+      </TopText>
+
+      <BottomText style={{ fontFamily: SANS, fontSize: 19, fontWeight: 500, color: '#475569' }}>
+        {content.bodyText}
+      </BottomText>
+      <Rule top={NAME_RULE_TOP - 2} width={96} height={6} radius={3} color={accent} />
+      <TopText
+        top={FOOTER_TOP + 4}
+        inset={260}
+        style={{ fontFamily: SANS, fontSize: 17, lineHeight: 1.55, color: '#475569' }}
+      >
+        {content.footerText}
+      </TopText>
+
+      <SignatureRow
+        content={content}
+        lineColor="#0f172a"
+        lineWeight={2}
+        caption={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#64748b' }}
+      />
+    </>
+  );
+}
+
+// ---------- Academic: double rule, serif type, seal ----------
+function AcademicLayout({ content }: LayoutProps) {
+  const accent = content.accentColor;
+  const sealCenterY = 792;
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 30, border: `3px solid ${accent}` }} />
+      <div style={{ position: 'absolute', inset: 40, border: `1px solid ${accent}` }} />
+
+      <TopText top={112} style={{ fontFamily: SERIF, fontSize: 26, fontWeight: 600, color: accent }}>
+        {content.institutionName}
+      </TopText>
+      <TopText
+        top={168}
+        style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, letterSpacing: '0.42em', textTransform: 'uppercase', color: '#6b7280' }}
+      >
+        {content.subtitleLabel}
+      </TopText>
+      <TopText
+        top={188}
+        style={{ fontFamily: SERIF, fontSize: 62, fontStyle: 'italic', fontWeight: 600, lineHeight: 1.1, color: '#111827' }}
+      >
+        {content.certificateTitle}
+      </TopText>
+      <Rule top={292} width={120} color={accent} />
+
+      <BottomText style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 21, color: '#4b5563' }}>
+        {content.bodyText}
+      </BottomText>
+      <Rule top={NAME_RULE_TOP} width={600} color={accent} />
+      <TopText
+        top={FOOTER_TOP}
+        inset={250}
+        style={{ fontFamily: SERIF, fontSize: 19, lineHeight: 1.55, color: '#4b5563' }}
+      >
+        {content.footerText}
+      </TopText>
+
+      {/* Seal with ribbon tails, centered between the signature lines. */}
+      {[-1, 1].map((side) => (
         <div
+          key={side}
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginTop: 60,
-            fontSize: 16,
-            fontWeight: 600,
+            position: 'absolute',
+            top: sealCenterY + 20,
+            left: CERT_WIDTH / 2 - 13 + side * 18,
+            width: 26,
+            height: 58,
+            backgroundColor: accent,
+            transform: `rotate(${side * 18}deg)`,
           }}
-        >
-          <div>
-            <div style={{ borderTop: '1px solid #111827', width: 280, marginBottom: 8 }} />
-            {content.signerName}
-          </div>
-          <div>
-            <div style={{ borderTop: '1px solid #111827', width: 280, marginBottom: 8 }} />
-            {content.dateText}
-          </div>
-        </div>
-      </div>
-    </div>
+        />
+      ))}
+      <Circle
+        left={CERT_WIDTH / 2 - 59}
+        top={sealCenterY - 59}
+        size={118}
+        style={{ backgroundColor: '#ffffff', border: `3px solid ${accent}` }}
+      />
+      <Circle
+        left={CERT_WIDTH / 2 - 44}
+        top={sealCenterY - 44}
+        size={88}
+        style={{ backgroundColor: tint(accent, 0.08), border: `1px solid ${accent}` }}
+      />
+      <Circle
+        left={CERT_WIDTH / 2 - 14}
+        top={sealCenterY - 14}
+        size={28}
+        style={{ backgroundColor: accent }}
+      />
+
+      <SignatureRow
+        content={content}
+        lineColor={accent}
+        caption={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: 16, color: '#4b5563' }}
+      />
+    </>
   );
 }
 
-// Modern's heading combines institution + subtitle with a dot separator.
-// Drop the dot when either piece is empty so we don't leave a dangling glyph.
-function renderModernSubtitle(content: CertificateContent): string {
-  const inst = content.institutionName.trim().toUpperCase();
-  const sub = content.subtitleLabel.trim();
-  if (inst && sub) return `${inst} · ${sub}`;
-  return inst || sub;
-}
-
-// ---------- NATURE ----------
-function NatureLayout({ content, onLogoMouseDown }: LayoutProps) {
+// ---------- Corporate: top accent bar, dark base band ----------
+function CorporateLayout({ content }: LayoutProps) {
   const accent = content.accentColor;
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        background: 'linear-gradient(180deg, #ecfdf5 0%, #f7f5ee 100%)',
-        fontFamily: 'Georgia, "Times New Roman", serif',
-        color: '#1f2937',
-        position: 'relative',
-      }}
-    >
-      <svg style={{ position: 'absolute', top: 0, left: 0 }} width="140" height="140" viewBox="0 0 140 140">
-        <path d="M0 0 C40 20 60 60 60 100 C20 80 0 40 0 0 Z" fill={accent} opacity={0.5} />
-      </svg>
-      <svg style={{ position: 'absolute', top: 0, right: 0 }} width="140" height="140" viewBox="0 0 140 140">
-        <path d="M140 0 C100 20 80 60 80 100 C120 80 140 40 140 0 Z" fill={accent} opacity={0.5} />
-      </svg>
-      <svg style={{ position: 'absolute', bottom: 0, left: 0 }} width="140" height="140" viewBox="0 0 140 140">
-        <path d="M0 140 C40 120 60 80 60 40 C20 60 0 100 0 140 Z" fill={accent} opacity={0.5} />
-      </svg>
-      <svg style={{ position: 'absolute', bottom: 0, right: 0 }} width="140" height="140" viewBox="0 0 140 140">
-        <path d="M140 140 C100 120 80 80 80 40 C120 60 140 100 140 140 Z" fill={accent} opacity={0.5} />
-      </svg>
+    <>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 12, backgroundColor: accent }} />
+      <div style={{ position: 'absolute', top: 861, left: 0, right: 0, height: 6, backgroundColor: accent }} />
+      <div style={{ position: 'absolute', top: 867, left: 0, right: 0, bottom: 0, backgroundColor: '#0f172a' }} />
 
-      <div style={{ position: 'absolute', inset: 80, border: `2px solid ${accent}` }} />
-
-      <Logo content={content} onMouseDown={onLogoMouseDown} />
-
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '120px 120px',
-          textAlign: 'center',
-        }}
+      <TopText
+        top={112}
+        style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, letterSpacing: '0.28em', textTransform: 'uppercase', color: '#0f172a' }}
       >
-        <div style={{ fontSize: 22, color: accent, letterSpacing: 4 }}>{content.institutionName}</div>
-        <div style={{ fontSize: 28, color: accent, letterSpacing: 8, marginTop: 20 }}>
-          {content.subtitleLabel}
-        </div>
-        <div style={{ fontSize: 52, fontStyle: 'italic', marginTop: 10, lineHeight: 1.1 }}>
-          {content.certificateTitle}
-        </div>
-        <div style={{ fontSize: 22, color: '#4b5563', marginTop: 30 }}>{content.bodyText}</div>
-        <div style={{ height: 120 }} />
-        <div style={{ width: 600, borderTop: `1px dashed ${accent}`, marginTop: 4 }} />
-        <div style={{ fontSize: 20, color: '#4b5563', marginTop: 30 }}>{content.footerText}</div>
-        <div style={{ marginTop: 50, fontSize: 18, color: accent }}>{content.signerName}</div>
-      </div>
-    </div>
+        {content.institutionName}
+      </TopText>
+      <TopText
+        top={162}
+        style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, letterSpacing: '0.34em', textTransform: 'uppercase', color: accent }}
+      >
+        {content.subtitleLabel}
+      </TopText>
+      <TopText
+        top={186}
+        style={{ fontFamily: SANS, fontSize: 52, fontWeight: 700, lineHeight: 1.12, letterSpacing: '-0.01em', color: '#0f172a' }}
+      >
+        {content.certificateTitle}
+      </TopText>
+      <Rule top={268} width={64} height={3} color={accent} />
+
+      <BottomText style={{ fontFamily: SANS, fontSize: 19, color: '#475569' }}>
+        {content.bodyText}
+      </BottomText>
+      <Rule top={NAME_RULE_TOP} width={520} color="#cbd5e1" />
+      <TopText
+        top={FOOTER_TOP}
+        inset={250}
+        style={{ fontFamily: SANS, fontSize: 17, lineHeight: 1.55, color: '#475569' }}
+      >
+        {content.footerText}
+      </TopText>
+
+      <SignatureRow
+        content={content}
+        lineColor="#94a3b8"
+        caption={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#64748b' }}
+      />
+    </>
   );
 }
+
+// ---------- Friendly: rounded frame, confetti, pill label ----------
+const CONFETTI: { left: number; top: number; size: number; color: 'accent' | string; square?: boolean }[] = [
+  { left: 1036, top: 78, size: 22, color: 'accent' },
+  { left: 1088, top: 124, size: 14, color: '#14b8a6' },
+  { left: 1004, top: 142, size: 12, color: '#facc15', square: true },
+  { left: 1100, top: 74, size: 10, color: '#ec4899' },
+  { left: 1124, top: 430, size: 14, color: '#facc15' },
+  { left: 66, top: 428, size: 12, color: 'accent', square: true },
+  { left: 92, top: 690, size: 18, color: '#facc15' },
+  { left: 72, top: 752, size: 12, color: '#6366f1' },
+  { left: 118, top: 760, size: 10, color: 'accent' },
+  { left: 1082, top: 694, size: 16, color: '#ec4899', square: true },
+  { left: 1112, top: 756, size: 12, color: '#14b8a6' },
+  { left: 1060, top: 746, size: 10, color: 'accent' },
+];
+
+function FriendlyLayout({ content }: LayoutProps) {
+  const accent = content.accentColor;
+  return (
+    <>
+      <div style={{ position: 'absolute', inset: 28, border: `8px solid ${accent}`, borderRadius: 40 }} />
+      {CONFETTI.map((dot, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: dot.left,
+            top: dot.top,
+            width: dot.size,
+            height: dot.size,
+            borderRadius: dot.square ? 3 : '50%',
+            transform: dot.square ? 'rotate(20deg)' : undefined,
+            backgroundColor: dot.color === 'accent' ? accent : dot.color,
+          }}
+        />
+      ))}
+
+      <TopText
+        top={118}
+        style={{ fontFamily: SANS, fontSize: 16, fontWeight: 700, letterSpacing: '0.22em', textTransform: 'uppercase', color: accent }}
+      >
+        {content.institutionName}
+      </TopText>
+      <TopText top={160} style={{}}>
+        {content.subtitleLabel && (
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '7px 18px',
+              borderRadius: 999,
+              backgroundColor: tint(accent, 0.12),
+              color: accent,
+              fontFamily: SANS,
+              fontSize: 14,
+              fontWeight: 700,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+            }}
+          >
+            {content.subtitleLabel}
+          </span>
+        )}
+      </TopText>
+      <TopText
+        top={208}
+        style={{ fontFamily: SANS, fontSize: 56, fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', color: '#1f2937' }}
+      >
+        {content.certificateTitle}
+      </TopText>
+
+      <BottomText style={{ fontFamily: SANS, fontSize: 20, fontWeight: 500, color: '#4b5563' }}>
+        {content.bodyText}
+      </BottomText>
+      <Rule top={NAME_RULE_TOP} width={460} height={3} radius={2} color={tint(accent, 0.35)} />
+      <TopText
+        top={FOOTER_TOP + 2}
+        inset={250}
+        style={{ fontFamily: SANS, fontSize: 18, lineHeight: 1.5, color: '#4b5563' }}
+      >
+        {content.footerText}
+      </TopText>
+
+      <SignatureRow
+        content={content}
+        lineColor="#e5e7eb"
+        lineWeight={2}
+        caption={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, color: '#6b7280' }}
+      />
+    </>
+  );
+}
+
+const LAYOUTS: Record<string, (props: LayoutProps) => JSX.Element> = {
+  elegant: ElegantLayout,
+  minimal: MinimalLayout,
+  bold: BoldLayout,
+  academic: AcademicLayout,
+  corporate: CorporateLayout,
+  friendly: FriendlyLayout,
+};
