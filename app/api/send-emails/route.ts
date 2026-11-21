@@ -107,7 +107,7 @@ const CERTIFICATE_VALID_YEARS = Number(process.env.CERTIFICATE_VALID_YEARS ?? 2)
  *     success screen can show /verify/<id> URLs.
  *
  * Guests (no session cookie):
- *   - Counted against the guest IP cap (GUEST_LIMIT, default 30).
+ *   - Counted against the guest IP cap (GUEST_LIMIT, default 100).
  *   - Nothing is persisted — the post-send banner suggests creating an
  *     account to get verify URLs.
  */

@@ -122,7 +122,7 @@ export default async function BlogPostPage({ params }: Props) {
           Ready to send your own certificates?
         </p>
         <p className="mt-1 text-sm text-gray-600">
-          Free: 30 certificates a month without an account, 300 with a free one.
+          Free: 100 certificates a month without an account, 300 with a free one.
         </p>
         <Link
           href="/app"

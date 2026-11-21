@@ -4,7 +4,7 @@ const PLANS = [
   {
     name: 'As a guest',
     tagline: 'No account needed',
-    limit: '30 certificates / month',
+    limit: '100 certificates / month',
     features: ['All templates or your own design', 'PDF certificate by email', 'Delivery report'],
     cta: { label: 'Start sending', href: '/app' },
     highlighted: false,
