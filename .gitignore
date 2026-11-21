@@ -10,3 +10,6 @@ next-env.d.ts
 data/waitlist.json
 data/feedback.json
 tsconfig.tsbuildinfo
+
+# Private outreach drafts (third-party contacts)
+marketing/outreach.md
