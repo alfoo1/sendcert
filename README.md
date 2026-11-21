@@ -70,7 +70,7 @@ data/
 
 ## Free tier and rate limiting
 
-Each client IP can send up to `RATE_LIMIT_PER_MONTH` certificates per calendar month (default 150). When the limit is hit, the API returns HTTP 429 and the UI opens a modal asking for the user's email so we can notify them when premium plans launch. Signups are appended to `data/waitlist.json`.
+Guests can send up to `RATE_LIMIT_GUEST_PER_MONTH` certificates per calendar month (default 30, counted per hashed IP). Signed-in accounts get `RATE_LIMIT_USER_PER_MONTH` (default 300). Quotas are enforced atomically in Postgres. When a limit is hit, the API returns HTTP 429: guests are invited to create a free account, and accounts can join the waitlist (stored in the Supabase `waitlist` table) to hear about larger plans.
 
 ## Sample CSV
 

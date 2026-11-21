@@ -6,6 +6,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from '@/lib/supabase';
+import { USER_LIMIT } from '@/lib/quota';
 
 // Per-user data: never prerender or cache this page.
 export const dynamic = 'force-dynamic';
@@ -16,9 +17,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// User-data quotas come from the same env constant as the API route to keep
-// the displayed limit in sync with what the server actually enforces.
-const MONTHLY_LIMIT = Number(process.env.RATE_LIMIT_PER_MONTH ?? 150);
+// Same constant the send API enforces, so the displayed limit can't drift.
+const MONTHLY_LIMIT = USER_LIMIT;
 
 type RecentSend = {
   course_name: string | null;

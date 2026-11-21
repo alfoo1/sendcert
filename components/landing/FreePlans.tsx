@@ -12,7 +12,7 @@ const PLANS = [
   {
     name: 'Free account',
     tagline: 'Sign in with an email link, no password',
-    limit: '150 certificates / month',
+    limit: '300 certificates / month',
     features: [
       'Everything in guest',
       'Public verification link for every certificate',

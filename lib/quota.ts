@@ -6,7 +6,9 @@ import {
 import { tryConsume } from '@/lib/rateLimit';
 
 export const GUEST_LIMIT = Number(process.env.RATE_LIMIT_GUEST_PER_MONTH ?? 30);
-export const USER_LIMIT = Number(process.env.RATE_LIMIT_PER_MONTH ?? 150);
+// RATE_LIMIT_USER_PER_MONTH replaces the old RATE_LIMIT_PER_MONTH variable,
+// which is ignored now so a stale value in Vercel can't lower the cap.
+export const USER_LIMIT = Number(process.env.RATE_LIMIT_USER_PER_MONTH ?? 300);
 
 export type Quota = {
   allowed: boolean;

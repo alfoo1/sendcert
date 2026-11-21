@@ -3,7 +3,7 @@ import Link from 'next/link';
 const QUESTIONS = [
   {
     q: 'Do I need an account?',
-    a: 'No. You can send up to 30 certificates a month as a guest. A free account raises that to 150 and adds a verification link for each certificate.',
+    a: 'No. You can send up to 30 certificates a month as a guest. A free account raises that to 300 and adds a verification link for each certificate.',
   },
   {
     q: 'What can I customize?',

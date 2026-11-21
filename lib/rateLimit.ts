@@ -5,8 +5,6 @@ import type { NextRequest } from 'next/server';
 // A horizontally scaled deployment would need Redis or similar.
 const counters = new Map<string, number>();
 
-const DEFAULT_LIMIT = Number(process.env.RATE_LIMIT_PER_MONTH ?? 150);
-
 /**
  * Extracts the client IP from the request.
  * Falls back through the chain: x-forwarded-for (first hop) → x-real-ip → unknown.
@@ -37,15 +35,6 @@ export type RateLimitStatus = {
 };
 
 /**
- * Returns current usage without mutating the counter.
- */
-export function peekRateLimit(ip: string, limit: number = DEFAULT_LIMIT): RateLimitStatus {
-  const key = `${ip}|${currentBucket()}`;
-  const used = counters.get(key) ?? 0;
-  return { ip, used, limit, remaining: Math.max(0, limit - used) };
-}
-
-/**
  * Atomically attempts to consume `amount` units for this IP within the monthly bucket.
  * Returns { allowed: true, status } if the increment was applied,
  * or { allowed: false, status } if it would exceed the limit (counter unchanged).
@@ -53,7 +42,7 @@ export function peekRateLimit(ip: string, limit: number = DEFAULT_LIMIT): RateLi
 export function tryConsume(
   ip: string,
   amount: number,
-  limit: number = DEFAULT_LIMIT,
+  limit: number,
 ): { allowed: boolean; status: RateLimitStatus } {
   const key = `${ip}|${currentBucket()}`;
   const used = counters.get(key) ?? 0;

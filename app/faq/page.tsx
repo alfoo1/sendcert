@@ -29,17 +29,17 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Is SendCert free?',
     answer:
-      'Yes. Without an account you can send up to 30 certificates per month. With a free account (just your email, no password) the limit goes up to 150 per month, enough for most course cohorts and workshops. There is no free trial and no credit card required. If you regularly need more, you can leave your email to be notified when larger plans launch.',
+      'Yes. Without an account you can send up to 30 certificates per month. With a free account (just your email, no password) the limit goes up to 300 per month, enough for most course cohorts and workshops. There is no free trial and no credit card required. If you regularly need more, you can leave your email to be notified when larger plans launch.',
   },
   {
     question: 'Do I need to create an account?',
     answer:
-      'No. You can go straight to the app, upload your template and recipient list, and send as a guest. A free account is optional: you sign in with a one-time link sent to your email, and you get a higher monthly limit (150 instead of 30), a public verification link for every certificate, and a dashboard with your send history.',
+      'No. You can go straight to the app, upload your template and recipient list, and send as a guest. A free account is optional: you sign in with a one-time link sent to your email, and you get a higher monthly limit (300 instead of 30), a public verification link for every certificate, and a dashboard with your send history.',
   },
   {
     question: 'How many certificates can I send?',
     answer:
-      'As a guest, up to 30 certificates per calendar month, counted per network connection. With a free account, up to 150 per month. Counters reset automatically on the first of each month, and certificates that fail to deliver are not counted. For one-off larger batches, reach out and we can usually accommodate.',
+      'As a guest, up to 30 certificates per calendar month, counted per network connection. With a free account, up to 300 per month. Counters reset automatically on the first of each month, and certificates that fail to deliver are not counted. For one-off larger batches, reach out and we can usually accommodate.',
   },
   {
     question: 'What file formats are supported for templates?',
@@ -69,7 +69,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'What happens when I reach the free limit?',
     answer:
-      'SendCert shows a message explaining the limit. As a guest, you can create a free account and keep going with up to 150 certificates per month. With an account, you can leave your email to hear about larger plans. A send that would go over the limit is rejected as a whole, so nothing is partially delivered. Counters reset automatically on the first day of each month.',
+      'SendCert shows a message explaining the limit. As a guest, you can create a free account and keep going with up to 300 certificates per month. With an account, you can leave your email to hear about larger plans. A send that would go over the limit is rejected as a whole, so nothing is partially delivered. Counters reset automatically on the first day of each month.',
   },
   {
     question: 'Does it work for any language?',

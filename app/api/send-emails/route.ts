@@ -101,7 +101,7 @@ const CERTIFICATE_VALID_YEARS = Number(process.env.CERTIFICATE_VALID_YEARS ?? 2)
  * status code (429 so the existing waitlist modal keeps working).
  *
  * Logged-in users:
- *   - Counted against the user-tier monthly cap (USER_LIMIT, default 150).
+ *   - Counted against the user-tier monthly cap (USER_LIMIT, default 300).
  *   - Each successful send is persisted to certificates_issued with a
  *     unique verify_id; the same id is streamed back to the client so the
  *     success screen can show /verify/<id> URLs.
