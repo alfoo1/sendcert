@@ -144,6 +144,7 @@ export default function PreviewStep({
   const [sendState, setSendState] = useState<SendState>({ phase: 'idle' });
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [waitlistMessage, setWaitlistMessage] = useState('');
+  const [waitlistTier, setWaitlistTier] = useState<'guest' | 'user'>('guest');
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackRecipientCount, setFeedbackRecipientCount] = useState(0);
   const completedSignatureRef = useRef<string | null>(null);
@@ -263,9 +264,8 @@ export default function PreviewStep({
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
         setSendState({ phase: 'idle' });
-        setWaitlistMessage(
-          data.error ?? "You've reached the 150-email free limit for this month.",
-        );
+        setWaitlistMessage(data.error ?? "You've reached this month's free limit.");
+        setWaitlistTier(data.tier === 'user' ? 'user' : 'guest');
         setWaitlistOpen(true);
         return;
       }
@@ -574,6 +574,7 @@ export default function PreviewStep({
       <WaitlistModal
         open={waitlistOpen}
         message={waitlistMessage}
+        tier={waitlistTier}
         onClose={() => setWaitlistOpen(false)}
       />
       <FeedbackModal

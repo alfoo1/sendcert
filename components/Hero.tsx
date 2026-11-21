@@ -6,7 +6,7 @@ export default function Hero() {
       <div className="mx-auto max-w-4xl px-6 text-center">
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm text-brand-700">
           <span className="h-2 w-2 rounded-full bg-brand-500" />
-          No sign-up · No credit card · We never store your data
+          No sign-up · No credit card · Guest sends aren&apos;t stored
         </div>
         <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
           Create and email <span className="text-brand-600">personalized certificates</span>

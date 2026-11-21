@@ -6,12 +6,14 @@ import { isValidEmail } from '@/lib/validation';
 type Props = {
   open: boolean;
   message: string;
+  // Guests can lift the cap by creating a free account; signed-in users can
+  // only join the premium waitlist.
+  tier: 'guest' | 'user';
   onClose: () => void;
 };
 
 // Modal shown when the server returns 429 (monthly rate limit reached).
-// Collects an email address so we can ping the user when premium launches.
-export default function WaitlistModal({ open, message, onClose }: Props) {
+export default function WaitlistModal({ open, message, tier, onClose }: Props) {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<'idle' | 'ok' | 'error'>('idle');
@@ -33,7 +35,10 @@ export default function WaitlistModal({ open, message, onClose }: Props) {
       const res = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, reason: 'rate-limit-hit' }),
+        body: JSON.stringify({
+          email,
+          reason: tier === 'guest' ? 'guest-limit-hit' : 'user-limit-hit',
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -62,6 +67,26 @@ export default function WaitlistModal({ open, message, onClose }: Props) {
             <p className="mt-1 text-sm text-gray-600">{message}</p>
           </div>
         </div>
+
+        {tier === 'guest' && (
+          <div className="mt-6 rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm">
+            <p className="font-semibold text-gray-900">
+              Create a free account to keep sending
+            </p>
+            <p className="mt-1 text-gray-700">
+              Sign in with your email in a new tab, then come back here and click
+              Send again. Your certificate setup stays as it is.
+            </p>
+            <a
+              href="/login"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+            >
+              Create a free account →
+            </a>
+          </div>
+        )}
 
         {status === 'ok' ? (
           <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">

@@ -7,6 +7,9 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase';
 
+// Per-user data: never prerender or cache this page.
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Dashboard',
   description: 'Your SendCert dashboard.',

@@ -68,6 +68,17 @@ export function renderTemplate(template: string, vars: { name: string }): string
   return template.replace(/\{\{\s*name\s*\}\}/g, vars.name);
 }
 
+// The body is user-written text; escape it so it can't inject HTML into
+// emails sent from our domain.
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Every outgoing email carries this small brand footer as plain text.
 const FOOTER =
   '\n\n—\nSent with SendCert · Create and send your certificates for free at sendcert.org';
@@ -88,7 +99,7 @@ export async function sendMail(
     to: message.to,
     subject: message.subject,
     text: bodyWithFooter,
-    html: bodyWithFooter.replace(/\n/g, '<br/>'),
+    html: escapeHtml(bodyWithFooter).replace(/\n/g, '<br/>'),
     attachments: message.attachments,
     ...(cfg.replyTo ? { replyTo: cfg.replyTo } : {}),
   });

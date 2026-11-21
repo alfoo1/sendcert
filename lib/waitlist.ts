@@ -1,37 +1,38 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
-
-// Persist waitlist signups to a JSON file under /data. Kept intentionally simple:
-// the file is small and append-heavy, fits the MVP without pulling in a DB.
-const DATA_DIR = path.join(process.cwd(), 'data');
-const WAITLIST_FILE = path.join(DATA_DIR, 'waitlist.json');
-
-export type WaitlistEntry = {
-  email: string;
-  addedAt: string; // ISO timestamp
-  reason?: string; // e.g. "rate-limit-hit"
-};
-
-async function readWaitlist(): Promise<WaitlistEntry[]> {
-  try {
-    const raw = await readFile(WAITLIST_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (err: unknown) {
-    // File or directory not existing is fine — we'll create it on first write
-    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return [];
-    throw err;
-  }
-}
+import {
+  createServiceSupabaseClient,
+  isSupabaseServiceConfigured,
+} from '@/lib/supabase';
+import { notifyOwner } from '@/lib/notify';
 
 /**
- * Appends an email to the waitlist. Idempotent: duplicates are ignored to avoid
- * users accidentally spamming themselves in.
+ * Saves a waitlist signup and emails the owner. Duplicates are ignored.
+ * Throws only if neither the database nor the email notification worked,
+ * so the signup is never silently lost.
  */
 export async function addToWaitlist(email: string, reason?: string): Promise<void> {
-  await mkdir(DATA_DIR, { recursive: true });
-  const list = await readWaitlist();
-  if (list.some((entry) => entry.email.toLowerCase() === email.toLowerCase())) return;
-  list.push({ email, addedAt: new Date().toISOString(), reason });
-  await writeFile(WAITLIST_FILE, JSON.stringify(list, null, 2), 'utf8');
+  const normalized = email.trim().toLowerCase();
+  let stored = false;
+  let notified = false;
+
+  if (isSupabaseServiceConfigured()) {
+    const { error } = await createServiceSupabaseClient()
+      .from('waitlist')
+      .upsert({ email: normalized, reason: reason ?? null }, { onConflict: 'email', ignoreDuplicates: true });
+    if (error) console.error('waitlist insert failed:', error);
+    else stored = true;
+  }
+
+  try {
+    await notifyOwner(
+      'SendCert waitlist signup',
+      `Email: ${normalized}\nReason: ${reason ?? '—'}\nSubmitted: ${new Date().toISOString()}`,
+    );
+    notified = true;
+  } catch (err) {
+    console.error('waitlist notification failed:', err);
+  }
+
+  if (!stored && !notified) {
+    throw new Error('Could not save waitlist signup.');
+  }
 }

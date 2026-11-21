@@ -242,7 +242,7 @@ export default function SendCertApp() {
             {/* Privacy badge — hidden below the `sm` breakpoint so mobile
                 headers only carry the logo + back link. */}
             <span className="hidden items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700 sm:inline-flex">
-              🔒 We never store your data
+              🔒 Guest sends aren&apos;t stored
             </span>
             <Link
               href="/"
@@ -339,8 +339,8 @@ export default function SendCertApp() {
       <footer className="border-t border-gray-100 bg-gray-50 py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-xs text-gray-500 sm:flex-row">
           <span>
-            🔒 We never store your data. Your files and email addresses never touch our
-            servers.
+            🔒 Guest sends aren&apos;t stored. Your files and recipient list are used only
+            to deliver your certificates.
           </span>
           <span>© {new Date().getFullYear()} SendCert</span>
         </div>

@@ -8,7 +8,8 @@ export default function CTA() {
           Start sending certificates now
         </h2>
         <p className="mt-4 text-lg text-brand-100">
-          No sign-up, no credit card. Free for your first 150 emails every month.
+          No credit card. 30 certificates a month without an account, 150 with a
+          free one.
         </p>
         <div className="mt-8">
           <Link

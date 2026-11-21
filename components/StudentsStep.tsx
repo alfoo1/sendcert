@@ -186,8 +186,9 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
           <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
             <span className="text-lg">🔒</span>
             <p>
-              We never store your data. Your files and email addresses never touch our
-              servers — parsing happens right here in your browser.
+              Your list is read right here in your browser. It only reaches our server
+              when you click Send, to deliver the certificates, and guest sends
+              aren&apos;t stored.
             </p>
           </div>
 

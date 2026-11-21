@@ -73,8 +73,8 @@ export default function LandingPage() {
       <footer className="border-t border-gray-100 bg-gray-50 py-10">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-gray-500">
           <p className="mb-2">
-            🔒 We never store your data. Your files and email addresses never touch our
-            servers.
+            🔒 Guest sends aren&apos;t stored. Your files and recipient list are used only
+            to deliver your certificates.
           </p>
           <p>
             © {new Date().getFullYear()} SendCert — Create and send certificates in

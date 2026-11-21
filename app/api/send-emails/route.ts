@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { cookies } from 'next/headers';
 import { generateCertificatePdf } from '@/lib/pdf';
 import { generateCertificateImagePng } from '@/lib/certificateImage';
 import { PRESET_TEMPLATES } from '@/lib/templates';
@@ -12,14 +11,21 @@ import {
   sendMail,
 } from '@/lib/mail';
 import { isValidEmail } from '@/lib/validation';
-import { getClientIp, tryConsume } from '@/lib/rateLimit';
+import { getClientIp } from '@/lib/rateLimit';
 import {
-  createServerSupabaseClient,
   createServiceSupabaseClient,
-  isSupabaseConfigured,
   isSupabaseServiceConfigured,
 } from '@/lib/supabase';
 import { generateVerifyId } from '@/lib/verifyId';
+import { getLoggedInUserId } from '@/lib/session';
+import {
+  GUEST_LIMIT,
+  USER_LIMIT,
+  consumeGuestQuota,
+  consumeUserQuota,
+  hashIp,
+  logSend,
+} from '@/lib/quota';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -80,75 +86,8 @@ type ServerEvent =
       usage: { used: number; limit: number; remaining: number };
     };
 
-const GUEST_LIMIT = Number(process.env.RATE_LIMIT_GUEST_PER_MONTH ?? 30);
-const USER_LIMIT = Number(process.env.RATE_LIMIT_PER_MONTH ?? 150);
 // Certificates persist for two years by default — tunable via env.
 const CERTIFICATE_VALID_YEARS = Number(process.env.CERTIFICATE_VALID_YEARS ?? 2);
-
-/**
- * Resolves the current user's id from the Supabase session cookie. Returns
- * null when Supabase isn't configured or the request is from a guest.
- */
-async function getLoggedInUserId(): Promise<string | null> {
-  if (!isSupabaseConfigured()) return null;
-  try {
-    const cookieStore = cookies();
-    const supabase = createServerSupabaseClient({
-      getAll: () => cookieStore.getAll(),
-      // Read-only path: we don't mutate cookies during a send.
-      setAll: () => {},
-    });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return user?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Reserves N slots for a logged-in user. Returns false if the reservation
- * would exceed the monthly cap. Atomicity is best-effort (re-read + write);
- * acceptable for low-volume MVP, replace with a DB-side increment for scale.
- */
-async function reserveUserSends(
-  userId: string,
-  amount: number,
-): Promise<{ allowed: boolean; used: number; limit: number; remaining: number }> {
-  const supabase = createServiceSupabaseClient();
-  const { data, error } = await supabase
-    .from('users')
-    .select('sends_this_month')
-    .eq('id', userId)
-    .single();
-  if (error || !data) {
-    return { allowed: false, used: 0, limit: USER_LIMIT, remaining: 0 };
-  }
-  const current = data.sends_this_month ?? 0;
-  const next = current + amount;
-  if (next > USER_LIMIT) {
-    return {
-      allowed: false,
-      used: current,
-      limit: USER_LIMIT,
-      remaining: Math.max(0, USER_LIMIT - current),
-    };
-  }
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({ sends_this_month: next })
-    .eq('id', userId);
-  if (updateError) {
-    return { allowed: false, used: current, limit: USER_LIMIT, remaining: USER_LIMIT - current };
-  }
-  return {
-    allowed: true,
-    used: next,
-    limit: USER_LIMIT,
-    remaining: USER_LIMIT - next,
-  };
-}
 
 /**
  * Streams per-recipient progress via Server-Sent Events so the UI can show a
@@ -191,45 +130,6 @@ export async function POST(req: NextRequest) {
       { error: 'No valid recipients to send to.' },
       { status: 400 },
     );
-  }
-
-  // ---------- Auth-aware rate limit ----------
-  const userId = await getLoggedInUserId();
-  let rateStatus: { used: number; limit: number; remaining: number };
-  if (userId && isSupabaseServiceConfigured()) {
-    const reservation = await reserveUserSends(userId, validRecipients.length);
-    if (!reservation.allowed) {
-      return NextResponse.json(
-        {
-          error: `You've reached the ${USER_LIMIT}-email limit for this month.`,
-          used: reservation.used,
-          limit: reservation.limit,
-          remaining: reservation.remaining,
-        },
-        { status: 429 },
-      );
-    }
-    rateStatus = {
-      used: reservation.used,
-      limit: reservation.limit,
-      remaining: reservation.remaining,
-    };
-  } else {
-    // Guest path — same in-memory IP limiter as before, with a stricter cap.
-    const ip = getClientIp(req);
-    const { allowed, status } = tryConsume(ip, validRecipients.length, GUEST_LIMIT);
-    if (!allowed) {
-      return NextResponse.json(
-        {
-          error: `You've reached the ${GUEST_LIMIT}-email free guest limit for this month.`,
-          limit: status.limit,
-          used: status.used,
-          remaining: status.remaining,
-        },
-        { status: 429 },
-      );
-    }
-    rateStatus = status;
   }
 
   // ---------- Template image ----------
@@ -276,6 +176,30 @@ export async function POST(req: NextRequest) {
     );
   }
   const transporter = createTransporter(smtpConfig);
+
+  // ---------- Monthly quota ----------
+  // Reserved only after the template and SMTP checks pass, so a request
+  // that can't be sent never consumes quota. Failed sends are refunded below.
+  const userId = await getLoggedInUserId();
+  const ipHash = hashIp(getClientIp(req));
+  const quota = userId
+    ? await consumeUserQuota(userId, validRecipients.length)
+    : await consumeGuestQuota(ipHash, validRecipients.length);
+  if (!quota.allowed) {
+    const error = userId
+      ? `You've reached the ${USER_LIMIT}-certificate limit for this month.`
+      : `Guests can send up to ${GUEST_LIMIT} certificates per month. Create a free account to send up to ${USER_LIMIT}.`;
+    return NextResponse.json(
+      {
+        error,
+        tier: userId ? 'user' : 'guest',
+        used: quota.used,
+        limit: quota.limit,
+        remaining: quota.remaining,
+      },
+      { status: 429 },
+    );
+  }
 
   // Strip {{name}} from the subject so the stored course_name doesn't carry
   // the placeholder. If the caller supplied a courseName we always prefer it.
@@ -410,11 +334,25 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      let usage = quota;
+      if (failed > 0) {
+        usage = userId
+          ? await consumeUserQuota(userId, -failed)
+          : await consumeGuestQuota(ipHash, -failed);
+      }
+      await logSend({
+        userId,
+        ipHash,
+        recipients: validRecipients.length,
+        sent,
+        failed,
+      });
+
       sendEvent({
         type: 'done',
         sent,
         failed,
-        usage: rateStatus,
+        usage: { used: usage.used, limit: usage.limit, remaining: usage.remaining },
       });
 
       controller.close();
