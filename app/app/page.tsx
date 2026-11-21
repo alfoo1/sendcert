@@ -22,6 +22,14 @@ import {
   type ExtraField,
 } from '@/lib/extraFields';
 
+// "Certificate of" + "Achievement" → "Certificate of Achievement".
+function certificateNameFrom(c: CertificateContent): string {
+  const title = c.certificateTitle.trim();
+  const subtitle = c.subtitleLabel.trim();
+  if (/^of\b/i.test(title) || /\bof$/i.test(subtitle)) return `${subtitle} ${title}`.trim();
+  return title;
+}
+
 // Main wizard. State lives in the component; the design (not the recipient
 // list) is autosaved in the browser so a refresh or a later visit resumes it.
 export default function SendCertApp() {
@@ -312,7 +320,7 @@ export default function SendCertApp() {
             {/* Privacy badge — hidden below the `sm` breakpoint so mobile
                 headers only carry the logo + back link. */}
             <span className="hidden items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700 sm:inline-flex">
-              🔒 Guest sends aren&apos;t stored
+              🔒 Recipient emails are never published
             </span>
             <Link
               href="/"
@@ -373,6 +381,12 @@ export default function SendCertApp() {
             <EmailStep
               emailConfig={emailConfig}
               onEmailConfigChange={setEmailConfig}
+              suggestedCertificateName={content ? certificateNameFrom(content) : undefined}
+              suggestedIssuerName={
+                content && content.institutionName !== 'Example Academy'
+                  ? content.institutionName
+                  : undefined
+              }
             />
           )}
           {step === 5 && (
@@ -415,8 +429,8 @@ export default function SendCertApp() {
       <footer className="border-t border-gray-100 bg-gray-50 py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-xs text-gray-500 sm:flex-row">
           <span>
-            🔒 Guest sends aren&apos;t stored. Your files and recipient list are used only
-            to deliver your certificates.
+            🔒 Guest sends never store recipient emails. Verification pages show only the
+            name, certificate, issuer and date.
           </span>
           <span>© {new Date().getFullYear()} SendCert</span>
         </div>

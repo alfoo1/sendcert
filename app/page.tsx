@@ -5,6 +5,7 @@ import CTA from '@/components/CTA';
 import TemplateGallery from '@/components/landing/TemplateGallery';
 import FreePlans from '@/components/landing/FreePlans';
 import FaqTeaser from '@/components/landing/FaqTeaser';
+import VerifiedSection from '@/components/landing/VerifiedSection';
 import { sans } from '@/components/landing/fonts';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -16,7 +17,7 @@ const jsonLd = {
   name: 'SendCert',
   url: siteUrl,
   description:
-    'Create personalized PDF certificates from a template and email one to each recipient. Free, no sign-up.',
+    'Create personalized PDF certificates from a template and email one to each recipient, each with its own verification link. Free, no sign-up.',
   applicationCategory: 'EducationApplication',
   operatingSystem: 'Web',
   offers: {
@@ -65,6 +66,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <TemplateGallery />
+        <VerifiedSection />
         <HowItWorks />
         <FreePlans />
         <FaqTeaser />
@@ -88,8 +90,8 @@ export default function LandingPage() {
             </Link>
           </nav>
           <p>
-            🔒 Guest sends aren&apos;t stored. Your files and recipient list are used only
-            to deliver your certificates.
+            🔒 We never store your recipients&apos; email addresses from guest sends. Each
+            verification page shows only the name, certificate, issuer and date.
           </p>
           <p>© {new Date().getFullYear()} SendCert</p>
         </div>

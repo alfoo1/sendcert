@@ -8,6 +8,7 @@ import {
   createTransporter,
   loadSmtpConfigFromEnv,
   renderTemplate,
+  linkedInRedirectFor,
   sendMail,
   verifyUrlFor,
   type ServerSmtpConfig,
@@ -58,6 +59,11 @@ type SendEmailsBody = {
     subject: string;
     body: string;
     replyTo?: string;
+    // Verification page per certificate (default on). Off = nothing stored.
+    verification?: boolean;
+    // Shown on the verification page and prefilled on LinkedIn.
+    certificateName?: string;
+    issuerName?: string;
   };
   extraFields?: ExtraFieldPayload[];
   // Optional override for the certificate's stored "course name" — falls
@@ -91,8 +97,8 @@ type ServerEvent =
       usage: { used: number; limit: number; remaining: number };
     };
 
-// Certificates persist for two years by default — tunable via env.
-const CERTIFICATE_VALID_YEARS = Number(process.env.CERTIFICATE_VALID_YEARS ?? 2);
+// Certificates don't expire unless CERTIFICATE_VALID_YEARS is set.
+const CERTIFICATE_VALID_YEARS = Number(process.env.CERTIFICATE_VALID_YEARS ?? 0);
 
 /**
  * Streams per-recipient progress via Server-Sent Events so the UI can show a
@@ -100,16 +106,14 @@ const CERTIFICATE_VALID_YEARS = Number(process.env.CERTIFICATE_VALID_YEARS ?? 2)
  * before the stream opens — failures there return plain JSON with the right
  * status code (429 so the existing waitlist modal keeps working).
  *
- * Logged-in users:
- *   - Counted against the user-tier monthly cap (USER_LIMIT, default 300).
- *   - Each successful send is persisted to certificates_issued with a
- *     unique verify_id; the same id is streamed back to the client so the
- *     success screen can show /verify/<id> URLs.
+ * Quotas: accounts count against USER_LIMIT (default 300), guests against
+ * the hashed-IP GUEST_LIMIT (default 100).
  *
- * Guests (no session cookie):
- *   - Counted against the guest IP cap (GUEST_LIMIT, default 100).
- *   - Nothing is persisted — the post-send banner suggests creating an
- *     account to get verify URLs.
+ * Verification (on unless the sender turns it off): every certificate gets
+ * a certificates_issued row with a unique verify_id, guests included. The
+ * template is stored once per batch. Guest rows never store the recipient's
+ * email; account rows keep it for the sender's history. The verify_id is
+ * streamed back so the success screen can list the /verify/<id> links.
  */
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as SendEmailsBody;
@@ -211,27 +215,33 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Strip {{name}} from the subject so the stored course_name doesn't carry
-  // the placeholder. If the caller supplied a courseName we always prefer it.
-  const inferredCourseName =
-    (courseName?.trim() || emailConfig.subject?.replace(/\{\{\s*name\s*\}\}/g, '').trim()) ||
-    null;
+  // Name shown on the verification page and on LinkedIn. Prefer what the
+  // sender typed; otherwise fall back to the subject without {{name}}.
+  const certificateName =
+    (emailConfig.certificateName?.trim() ||
+      courseName?.trim() ||
+      emailConfig.subject?.replace(/\{\{\s*name\s*\}\}/g, '').replace(/[—–-]\s*$/, '').trim() ||
+      'Certificate'
+    ).slice(0, 150);
+  const issuerName = emailConfig.issuerName?.trim().slice(0, 150) || null;
 
   // Pre-build today / expiry dates once so all rows in this batch agree.
   const issuedDate = new Date();
-  const expiryDate = new Date(issuedDate);
-  expiryDate.setFullYear(expiryDate.getFullYear() + CERTIFICATE_VALID_YEARS);
   const issuedDateIso = issuedDate.toISOString().slice(0, 10);
-  const expiryDateIso = expiryDate.toISOString().slice(0, 10);
+  let expiryDateIso: string | null = null;
+  if (CERTIFICATE_VALID_YEARS > 0) {
+    const expiryDate = new Date(issuedDate);
+    expiryDate.setFullYear(expiryDate.getFullYear() + CERTIFICATE_VALID_YEARS);
+    expiryDateIso = expiryDate.toISOString().slice(0, 10);
+  }
 
-  // Logged-in sends store the template once per batch; each certificate row
-  // references it, and the verify page draws the recipient's name on top.
+  // The template is stored once per batch; each certificate row references
+  // it, and the verify page draws the recipient's name on top.
+  const verificationOn = emailConfig.verification !== false;
   const supabaseService =
-    userId && isSupabaseServiceConfigured()
-      ? createServiceSupabaseClient()
-      : null;
+    verificationOn && isSupabaseServiceConfigured() ? createServiceSupabaseClient() : null;
   let batchId: string | null = null;
-  if (supabaseService && userId) {
+  if (supabaseService) {
     try {
       const meta = await sharp(baseImage).metadata();
       const width = meta.width ?? 1200;
@@ -247,6 +257,7 @@ export async function POST(req: NextRequest) {
         .from('certificate_batches')
         .insert({
           user_id: userId,
+          ip_hash: userId ? null : ipHash,
           template_image: `data:image/jpeg;base64,${preview.toString('base64')}`,
           width,
           height,
@@ -282,7 +293,7 @@ export async function POST(req: NextRequest) {
       // Saves the verification record before the email goes out so the link
       // inside the email works immediately. Retries once on an ID collision.
       async function reserveVerifyId(name: string, email: string): Promise<string | null> {
-        if (!supabaseService || !userId || !batchId) return null;
+        if (!supabaseService || !batchId) return null;
         for (let attempt = 0; attempt < 2; attempt++) {
           const candidateId = generateVerifyId(issuedDate);
           const { error } = await supabaseService.from('certificates_issued').insert({
@@ -290,9 +301,10 @@ export async function POST(req: NextRequest) {
             user_id: userId,
             batch_id: batchId,
             recipient_name: name,
-            recipient_email: email,
-            course_name: inferredCourseName,
-            issuer_name: smtpConfig.fromName ?? 'SendCert',
+            // Guests: never store the recipient's address.
+            recipient_email: userId ? email : null,
+            course_name: certificateName,
+            issuer_name: issuerName,
             issued_date: issuedDateIso,
             expiry_date: expiryDateIso,
           });
@@ -339,6 +351,8 @@ export async function POST(req: NextRequest) {
               },
             ],
             verifyUrl: verifyId ? verifyUrlFor(verifyId) : undefined,
+            linkedInUrl: verifyId ? linkedInRedirectFor(verifyId, 'add', 'email') : undefined,
+            verifyId: verifyId ?? undefined,
           });
           sent += 1;
           result = { email, name, status: 'ok', verifyId: verifyId ?? undefined };

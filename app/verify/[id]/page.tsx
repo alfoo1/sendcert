@@ -2,67 +2,31 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CERT_WIDTH } from '@/lib/certificateSize';
 import {
-  createServiceSupabaseClient,
-  isSupabaseServiceConfigured,
-} from '@/lib/supabase';
+  certificateTitle,
+  formatDate,
+  getCertificate,
+  isExpired,
+  type CertificateBatch,
+  type FontFamily,
+} from '@/lib/certificates';
+import { sans } from '@/components/landing/fonts';
+import ShareActions from './ShareActions';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
-// Each /verify/[id] page is dynamic — it reflects the current row in
-// certificates_issued. Disabling caching means a freshly issued certificate
-// is verifiable the moment the API insert returns.
+// Each /verify/[id] page reflects the current row in certificates_issued, so
+// a freshly issued certificate is verifiable the moment the API insert returns.
 export const dynamic = 'force-dynamic';
 
 type Props = { params: { id: string } };
-
-type FontFamily = 'helvetica' | 'times' | 'courier';
-
-type TextOverlay = {
-  x: number; // percent, center of the text
-  y: number;
-  fontSize: number; // relative to a CERT_WIDTH-wide certificate
-  color: string;
-  fontFamily?: FontFamily;
-};
-
-type CertificateBatch = {
-  template_image: string;
-  width: number;
-  height: number;
-  text_config: TextOverlay;
-  extra_fields: (TextOverlay & { text: string })[];
-};
-
-type CertificateRecord = {
-  verify_id: string;
-  recipient_name: string;
-  course_name: string | null;
-  issuer_name: string | null;
-  issued_date: string;
-  expiry_date: string | null;
-  verify_domain: string;
-  certificate_batches: CertificateBatch | null;
-};
-
-async function fetchCertificate(verifyId: string): Promise<CertificateRecord | null> {
-  if (!isSupabaseServiceConfigured()) return null;
-  const supabase = createServiceSupabaseClient();
-  const { data, error } = await supabase
-    .from('certificates_issued')
-    .select(
-      'verify_id, recipient_name, course_name, issuer_name, issued_date, expiry_date, verify_domain, certificate_batches(template_image, width, height, text_config, extra_fields)',
-    )
-    .eq('verify_id', verifyId)
-    .maybeSingle();
-  if (error || !data) return null;
-  return data as unknown as CertificateRecord;
-}
 
 const SVG_FONTS: Record<FontFamily, string> = {
   helvetica: 'Helvetica, Arial, sans-serif',
   times: 'Georgia, "Times New Roman", serif',
   courier: '"Courier New", monospace',
 };
+
+const HOME_LINK = '/?utm_source=verify_page&utm_medium=referral&utm_campaign=powered_by';
 
 // Same geometry as lib/pdf.ts: percent position of the text's center, font
 // size relative to a CERT_WIDTH-wide certificate. The SVG viewBox uses the
@@ -104,191 +68,241 @@ function CertificateSvg({ batch, name }: { batch: CertificateBatch; name: string
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const cert = await fetchCertificate(params.id);
+  const cert = await getCertificate(params.id);
   if (!cert) {
-    return {
-      title: 'Certificate not found',
-      robots: { index: false, follow: false },
-    };
+    return { title: 'Certificate not found', robots: { index: false, follow: false } };
   }
-  const title = `${cert.recipient_name} — ${cert.course_name ?? 'Verified Certificate'}`;
-  const description = `Verified certificate issued by ${cert.issuer_name ?? 'SendCert'} on ${cert.issued_date}. Verify ID: ${cert.verify_id}.`;
+  const title = `${cert.recipient_name} · ${certificateTitle(cert)}`;
+  const issuer = cert.issuer_name ? ` by ${cert.issuer_name}` : '';
+  const description = `Verified certificate issued${issuer} on ${formatDate(cert.issued_date)}. Certificate ID ${cert.verify_id}.`;
   return {
     title,
     description,
     alternates: { canonical: `${siteUrl}/verify/${cert.verify_id}` },
+    // Recipients share these pages; they shouldn't turn people's names into
+    // search results, and thousands of thin pages would dilute the site.
+    robots: { index: false, follow: true },
     openGraph: {
       type: 'article',
       title,
       description,
       url: `${siteUrl}/verify/${cert.verify_id}`,
+      siteName: 'SendCert',
     },
+    twitter: { card: 'summary_large_image', title, description },
   };
 }
 
-function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
-function isExpired(expiry: string | null): boolean {
-  if (!expiry) return false;
-  return new Date(expiry).getTime() < Date.now();
-}
-
 export default async function VerifyPage({ params }: Props) {
-  const cert = await fetchCertificate(params.id);
+  const cert = await getCertificate(params.id, { withDesign: true });
 
   if (!cert) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-          <div className="text-4xl">🚫</div>
-          <h1 className="mt-3 text-xl font-bold text-gray-900">
-            Certificate not found
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            We couldn&apos;t find a certificate with ID{' '}
-            <code className="rounded bg-gray-100 px-1">{params.id}</code>. Double-check
-            the URL and try again.
-          </p>
-          <Link
-            href="/"
-            className="mt-4 inline-block text-sm font-medium text-brand-600 underline"
-          >
-            Back to SendCert
-          </Link>
-        </div>
-      </main>
+      <div className={`${sans.className} flex min-h-screen flex-col bg-slate-50`}>
+        <VerifyHeader />
+        <main className="flex flex-1 items-center justify-center px-5 py-16">
+          <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl text-red-600">
+              ✕
+            </div>
+            <h1 className="mt-4 text-xl font-bold text-gray-900">No certificate with this ID</h1>
+            <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              We couldn&apos;t find a certificate with ID{' '}
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-800">{params.id}</code>.
+              Check that the link or ID was copied exactly. If it was, this certificate wasn&apos;t
+              issued through SendCert.
+            </p>
+          </div>
+        </main>
+        <VerifyFooter />
+      </div>
     );
   }
 
   const expired = isExpired(cert.expiry_date);
+  const title = certificateTitle(cert);
+  const pageUrl = `${siteUrl}/verify/${cert.verify_id}`;
 
-  // schema.org Credential markup. Helps both classic SERPs and LLM answers
-  // surface the verification page when someone searches for the recipient
-  // or the verify ID.
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'EducationalOccupationalCredential',
-    name: cert.course_name ?? 'Certificate',
+    name: title,
     credentialCategory: 'Certificate',
-    recognizedBy: {
-      '@type': 'Organization',
-      name: cert.issuer_name ?? 'SendCert',
-    },
+    ...(cert.issuer_name
+      ? { recognizedBy: { '@type': 'Organization', name: cert.issuer_name } }
+      : {}),
     dateCreated: cert.issued_date,
     expires: cert.expiry_date ?? undefined,
     identifier: cert.verify_id,
-    url: `${siteUrl}/verify/${cert.verify_id}`,
-    about: {
-      '@type': 'Person',
-      name: cert.recipient_name,
-    },
+    url: pageUrl,
+    about: { '@type': 'Person', name: cert.recipient_name },
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 px-4 py-10">
+    <div className={`${sans.className} flex min-h-screen flex-col bg-slate-50`}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <VerifyHeader />
 
-      <div className="mx-auto max-w-3xl">
-        {/* Verification badge bar */}
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-12">
+        {/* Status */}
         <div
-          className={`mb-6 flex items-center gap-3 rounded-xl border p-4 ${
-            expired
-              ? 'border-red-200 bg-red-50 text-red-900'
-              : 'border-green-200 bg-green-50 text-green-900'
+          className={`flex items-start gap-3 rounded-2xl border px-5 py-4 ${
+            expired ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'
           }`}
         >
-          <span className="text-2xl" aria-hidden>
-            {expired ? '⚠️' : '✓'}
+          <span
+            aria-hidden
+            className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${
+              expired ? 'bg-amber-500' : 'bg-emerald-600'
+            }`}
+          >
+            {expired ? '!' : '✓'}
           </span>
           <div>
-            <p className="font-semibold">
-              {expired ? 'Expired Certificate' : 'Verified Certificate'}
+            <p className={`font-semibold ${expired ? 'text-amber-900' : 'text-emerald-900'}`}>
+              {expired ? 'Genuine certificate · expired' : 'Verified certificate'}
             </p>
-            <p className="text-sm">
-              ID <code className="rounded bg-white/50 px-1 font-mono">{cert.verify_id}</code>
+            <p className={`mt-0.5 text-sm ${expired ? 'text-amber-800' : 'text-emerald-800'}`}>
+              Issued {cert.issuer_name ? `by ${cert.issuer_name} ` : ''}on{' '}
+              {formatDate(cert.issued_date)} through SendCert.
             </p>
           </div>
         </div>
 
-        {/* Certificate image */}
-        {cert.certificate_batches && (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <CertificateSvg batch={cert.certificate_batches} name={cert.recipient_name} />
+        <div className="mt-6 grid gap-6 lg:grid-cols-5">
+          {/* Certificate */}
+          <div className="lg:col-span-3">
+            {cert.certificate_batches ? (
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-2 shadow-sm sm:p-3">
+                <CertificateSvg batch={cert.certificate_batches} name={cert.recipient_name} />
+              </div>
+            ) : (
+              <div className="flex aspect-[1200/927] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white text-sm text-gray-500">
+                Certificate preview not available
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Metadata */}
-        <dl className="mt-6 grid gap-4 rounded-xl border border-gray-200 bg-white p-6 sm:grid-cols-2">
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Recipient
-            </dt>
-            <dd className="mt-1 text-base font-semibold text-gray-900">
-              {cert.recipient_name}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Course
-            </dt>
-            <dd className="mt-1 text-base text-gray-900">
-              {cert.course_name ?? '—'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Issued by
-            </dt>
-            <dd className="mt-1 text-base text-gray-900">
-              {cert.issuer_name ?? 'SendCert'}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
-              Issue date
-            </dt>
-            <dd className="mt-1 text-base text-gray-900">
-              {formatDate(cert.issued_date)}
-            </dd>
-          </div>
-          {cert.expiry_date && (
-            <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                {expired ? 'Status' : 'Valid until'}
-              </dt>
-              <dd
-                className={`mt-1 text-base ${
-                  expired ? 'font-semibold text-red-600' : 'text-gray-900'
-                }`}
-              >
-                {expired ? 'Expired' : formatDate(cert.expiry_date)}
-              </dd>
+          {/* Details + actions */}
+          <aside className="space-y-4 lg:col-span-2">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Awarded to</p>
+              <h1 className="mt-1 text-2xl font-bold leading-tight text-gray-900">
+                {cert.recipient_name}
+              </h1>
+              <p className="mt-1 text-base text-gray-700">{title}</p>
+
+              <dl className="mt-5 space-y-3 border-t border-gray-100 pt-5 text-sm">
+                <Row label="Issued by">{cert.issuer_name ?? '—'}</Row>
+                <Row label="Issue date">{formatDate(cert.issued_date)}</Row>
+                {cert.expiry_date && (
+                  <Row label={expired ? 'Expired on' : 'Valid until'}>
+                    {formatDate(cert.expiry_date)}
+                  </Row>
+                )}
+                <Row label="Certificate ID">
+                  <span className="font-mono text-[13px] text-gray-900">{cert.verify_id}</span>
+                </Row>
+                <Row label="Status">
+                  <span
+                    className={`inline-flex items-center gap-1.5 font-medium ${
+                      expired ? 'text-amber-700' : 'text-emerald-700'
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`h-1.5 w-1.5 rounded-full ${expired ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                    />
+                    {expired ? 'Expired' : 'Valid'}
+                  </span>
+                </Row>
+              </dl>
             </div>
-          )}
-        </dl>
 
-        <footer className="mt-8 text-center text-xs text-gray-500">
-          <p>
-            Powered by{' '}
-            <Link
-              href="/?utm_source=verify_page&utm_medium=referral&utm_campaign=powered_by"
-              className="font-medium text-brand-600 underline"
-            >
-              SendCert
-            </Link>{' '}
-            · {cert.verify_domain}
-          </p>
-        </footer>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+              <p className="text-sm font-semibold text-gray-900">Is this your certificate?</p>
+              <p className="mb-4 mt-1 text-sm text-gray-600">
+                Add it to your profile or share it. This page is the proof that it&apos;s real.
+              </p>
+              <ShareActions verifyId={cert.verify_id} pageUrl={pageUrl} />
+            </div>
+          </aside>
+        </div>
+
+        {/* How verification works */}
+        <section className="mt-10 rounded-2xl border border-gray-200 bg-white p-6 sm:p-8">
+          <h2 className="text-base font-semibold text-gray-900">How this verification works</h2>
+          <div className="mt-5 grid gap-6 sm:grid-cols-3">
+            <Point title="A unique ID">
+              Every certificate sent with SendCert gets its own ID and its own page on sendcert.org.
+            </Point>
+            <Point title="Recorded at issue">
+              This record was created when the certificate was sent. The recipient can&apos;t edit it.
+            </Point>
+            <Point title="Easy to check">
+              If a PDF or printout doesn&apos;t match the name, certificate and date on this page, it
+              isn&apos;t genuine.
+            </Point>
+          </div>
+        </section>
+      </main>
+
+      <VerifyFooter />
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className="shrink-0 text-gray-500">{label}</dt>
+      <dd className="text-right text-gray-900">{children}</dd>
+    </div>
+  );
+}
+
+function Point({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-sm font-semibold text-gray-900">{title}</p>
+      <p className="mt-1 text-sm leading-relaxed text-gray-600">{children}</p>
+    </div>
+  );
+}
+
+function VerifyHeader() {
+  return (
+    <header className="border-b border-gray-200 bg-white">
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
+        <Link href={HOME_LINK} className="flex items-center gap-2 text-base font-bold text-gray-900">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-sm text-white">
+            S
+          </span>
+          SendCert
+        </Link>
+        <span className="text-xs font-medium text-gray-500">Certificate verification</span>
       </div>
-    </main>
+    </header>
+  );
+}
+
+function VerifyFooter() {
+  return (
+    <footer className="border-t border-gray-200 bg-white">
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-4 py-8 text-center sm:px-6">
+        <p className="max-w-md text-sm text-gray-600">
+          SendCert makes verifiable certificates free for every teacher, trainer and nonprofit.
+        </p>
+        <Link
+          href={HOME_LINK}
+          className="text-sm font-semibold text-brand-600 hover:text-brand-700"
+        >
+          Issue your own certificates, free →
+        </Link>
+      </div>
+    </footer>
   );
 }

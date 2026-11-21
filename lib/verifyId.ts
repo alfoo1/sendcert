@@ -1,18 +1,19 @@
-// Public verification IDs are short, human-readable, and unambiguous.
-// Format: CERT-YYYY-XXXX where XXXX is 4 chars from a 32-symbol alphabet.
-// 32^4 ≈ 1M unique IDs per year; collisions are caught at insert time
-// thanks to the UNIQUE constraint on certificates_issued.verify_id.
+import { randomInt } from 'node:crypto';
+
+// Public verification IDs: CERT-YYYY-XXXX-XXXX, with 8 cryptographically
+// random characters (31^8 ≈ 850 billion combinations per year). Guessing a
+// valid ID is impractical, so verification pages can't be enumerated.
+// Older IDs (CERT-YYYY-XXXX) keep working; lookups are by exact string.
 
 // Skip 0/O/1/I/L to avoid handwriting / OCR confusion.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
-function randomChar(): string {
-  const idx = Math.floor(Math.random() * ALPHABET.length);
-  return ALPHABET[idx];
+function randomBlock(length: number): string {
+  let out = '';
+  for (let i = 0; i < length; i++) out += ALPHABET[randomInt(ALPHABET.length)];
+  return out;
 }
 
 export function generateVerifyId(now: Date = new Date()): string {
-  const year = now.getFullYear();
-  const code = Array.from({ length: 4 }, randomChar).join('');
-  return `CERT-${year}-${code}`;
+  return `CERT-${now.getFullYear()}-${randomBlock(4)}-${randomBlock(4)}`;
 }

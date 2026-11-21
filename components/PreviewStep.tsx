@@ -476,6 +476,12 @@ export default function PreviewStep({
                     {emailConfig.subject || '—'}
                   </dd>
                 </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-600">Verification pages</dt>
+                  <dd className="font-semibold">
+                    {emailConfig.verification === false ? 'Off' : 'On'}
+                  </dd>
+                </div>
               </dl>
 
               {/* Test-send card */}
@@ -731,16 +737,31 @@ function SuccessPanel({
         Your recipients should be receiving their emails in the next few minutes.
       </p>
 
-      {/* For logged-in users, surface the verify URL of every saved cert so
-          they can copy/share it. Guests see a banner inviting them to sign
-          up — this is the only place we nudge auth in the core flow. */}
-      {loggedIn && verified.length > 0 && (
+      {/* Every certificate with a verify ID (guests included) is listed so the
+          sender can open or share the links. Guests also see a light nudge to
+          create an account — the only place we mention auth in the core flow. */}
+      {verified.length > 0 && (
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-left">
-          <p className="text-sm font-semibold text-gray-900">Verification URLs</p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Anyone can verify these certificates publicly. Share the URL with
-            recipients or include it in the email body.
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Verification links</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Each recipient got their link by email, with a button to add it to LinkedIn.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const text = verified
+                  .map((r) => `${r.name}\t${window.location.origin}/verify/${r.verifyId}`)
+                  .join('\n');
+                navigator.clipboard?.writeText(text).catch(() => {});
+              }}
+              className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Copy all
+            </button>
+          </div>
           <ul className="mt-3 max-h-48 space-y-1 overflow-auto text-xs">
             {verified.map((r) => (
               <li
@@ -766,12 +787,10 @@ function SuccessPanel({
 
       {!loggedIn && (
         <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-4 text-left text-sm">
-          <p className="font-semibold text-gray-900">
-            Want a verification URL for each certificate?
-          </p>
+          <p className="font-semibold text-gray-900">Sending certificates often?</p>
           <p className="mt-1 text-gray-700">
-            Create a free account and every cert you send gets a public
-            sendcert.org/verify/CERT-… URL recipients can share.
+            A free account raises your limit to 300 a month and keeps a history of every
+            send. Just your email, no password.
           </p>
           <a
             href="/login"

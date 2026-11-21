@@ -90,7 +90,8 @@ function delta(current: number, previous: number): string | null {
 async function loadData() {
   const supabase = createServiceSupabaseClient();
   const since = new Date(Date.now() - 365 * DAY_MS).toISOString();
-  const [logs, users, feedback, waitlist, certs] = await Promise.all([
+  const since30 = new Date(Date.now() - 30 * DAY_MS).toISOString();
+  const [logs, users, feedback, waitlist, certs, certs30, shares] = await Promise.all([
     supabase
       .from('send_log')
       .select('created_at, user_id, ip_hash, recipients, sent, failed, template')
@@ -112,8 +113,18 @@ async function loadData() {
       .order('created_at', { ascending: false })
       .limit(50),
     supabase.from('certificates_issued').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('certificates_issued')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', since30),
+    supabase
+      .from('share_events')
+      .select('kind, source')
+      .gte('created_at', since30)
+      .limit(10000),
   ]);
-  const error = logs.error ?? users.error ?? feedback.error ?? waitlist.error ?? certs.error;
+  const error =
+    logs.error ?? users.error ?? feedback.error ?? waitlist.error ?? certs.error ?? certs30.error;
   return {
     error: error?.message ?? null,
     logs: (logs.data ?? []) as SendRow[],
@@ -121,6 +132,9 @@ async function loadData() {
     feedback: (feedback.data ?? []) as FeedbackRow[],
     waitlist: (waitlist.data ?? []) as WaitlistRow[],
     verifiedCount: certs.count ?? 0,
+    verified30: certs30.count ?? 0,
+    // Missing table (migration 0005 not run yet) shouldn't break the page.
+    shares30: (shares.error ? [] : shares.data ?? []) as { kind: string; source: string | null }[],
   };
 }
 
@@ -242,6 +256,39 @@ export default async function AdminPage() {
             </tbody>
           </table>
         </details>
+      </section>
+
+      <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="font-semibold text-gray-900">Verification &amp; sharing, last 30 days</h2>
+        <p className="text-xs text-gray-500">
+          Clicks on the buttons in the certificate email and on the verification page. Email
+          security scanners can open links too, so treat email clicks as an upper bound.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-4">
+          {[
+            { label: 'Verification pages created', value: data.verified30, note: `${data.verifiedCount} in total` },
+            ...(['linkedin_add', 'linkedin_share', 'copy_link'] as const).map((kind) => {
+              const rows = data.shares30.filter((r) => r.kind === kind);
+              const fromEmail = rows.filter((r) => r.source === 'email').length;
+              return {
+                label:
+                  kind === 'linkedin_add'
+                    ? 'Added to LinkedIn'
+                    : kind === 'linkedin_share'
+                      ? 'Shared on LinkedIn'
+                      : 'Links copied',
+                value: rows.length,
+                note: kind === 'copy_link' ? 'from the verification page' : `${fromEmail} from email · ${rows.length - fromEmail} from page`,
+              };
+            }),
+          ].map((t) => (
+            <div key={t.label}>
+              <p className="text-sm text-gray-500">{t.label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums text-gray-900">{t.value}</p>
+              <p className="text-xs text-gray-500">{t.note}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">

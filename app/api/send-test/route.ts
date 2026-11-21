@@ -40,6 +40,7 @@ type SendTestBody = {
     subject: string;
     body: string;
     replyTo?: string;
+    verification?: boolean;
   };
   extraFields?: ExtraFieldPayload[];
 };
@@ -142,6 +143,7 @@ export async function POST(req: NextRequest) {
           contentType: 'application/pdf',
         },
       ],
+      previewVerification: emailConfig.verification !== false,
     });
 
     return NextResponse.json({ ok: true });

@@ -3,7 +3,7 @@ import Link from 'next/link';
 const QUESTIONS = [
   {
     q: 'Do I need an account?',
-    a: 'No. You can send up to 100 certificates a month as a guest. A free account raises that to 300 and adds a verification link for each certificate.',
+    a: 'No. You can send up to 100 certificates a month as a guest, and every certificate still gets its own verification link. A free account raises the limit to 300 and keeps a history of your sends.',
   },
   {
     q: 'What can I customize?',
@@ -11,11 +11,11 @@ const QUESTIONS = [
   },
   {
     q: 'How do recipients get their certificate?',
-    a: 'Each person receives an email with their own PDF certificate attached. Nothing to install or sign up for on their side.',
+    a: 'Each person receives an email with their own PDF certificate attached and a link to its verification page. Nothing to install or sign up for on their side.',
   },
   {
     q: 'Is my recipient list stored?',
-    a: "Guest sends aren't stored: the list is used only to deliver the certificates. With an account, certificates are saved so they can be verified.",
+    a: "For guest sends we never store email addresses. We keep only what each verification page shows: the recipient's name, the certificate, the issuer and the date. You can turn verification off, and then nothing is kept.",
   },
 ];
 

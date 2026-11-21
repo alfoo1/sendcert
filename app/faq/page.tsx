@@ -24,7 +24,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'What is SendCert?',
     answer:
-      'SendCert is a web tool for teachers, course creators, and workshop organizers that generates personalized PDF certificates and delivers them by email in a single flow. You upload a template image, upload a CSV of recipients, and SendCert creates a unique PDF for each person with their name and any custom fields you define. It then sends each certificate as an email attachment from a branded sender. The whole process takes minutes, even for large cohorts.',
+      'SendCert is a free web tool for teachers, trainers, course creators and nonprofits that creates personalized PDF certificates and delivers them by email in a single flow. You pick a design or upload your own, add your recipients, and every person gets their own PDF with their name, plus a public verification page with a unique ID so anyone can check the certificate is real. The whole process takes minutes, even for large groups.',
   },
   {
     question: 'Is SendCert free?',
@@ -34,7 +34,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Do I need to create an account?',
     answer:
-      'No. You can go straight to the app, upload your template and recipient list, and send as a guest. A free account is optional: you sign in with a one-time link sent to your email, and you get a higher monthly limit (300 instead of 100), a public verification link for every certificate, and a dashboard with your send history.',
+      'No. You can go straight to the app, upload your template and recipient list, and send as a guest. Guest sends get the same verification link for every certificate. A free account is optional: you sign in with a one-time link sent to your email, and you get a higher monthly limit (300 instead of 100) and a dashboard with your send history.',
   },
   {
     question: 'How many certificates can I send?',
@@ -54,12 +54,32 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'How do recipients receive their certificates?',
     answer:
-      'Each recipient gets an individual email from our branded sender address with their personalized PDF attached. The subject line and body can include a `{{name}}` variable so every email feels written for that specific person. The PDF opens in any standard reader on desktop or mobile — no app or login required on their side. You can also add a Reply-To address so replies land in your own inbox.',
+      'Each recipient gets an individual email from our branded sender address with their personalized PDF attached, plus buttons to view and verify the certificate online and to add it to LinkedIn. The subject line and body can include a `{{name}}` variable so every email feels written for that specific person. The PDF opens in any standard reader on desktop or mobile, with no app or login required on their side. You can also add a Reply-To address so replies land in your own inbox.',
   },
   {
     question: 'Is my data stored on your servers?',
     answer:
-      'For guest sends, no: recipient names, email addresses, templates, and generated PDFs are used only to create and deliver the certificates, and are not saved. We keep only anonymous counts (how many certificates were sent). With a free account, each certificate is saved (recipient name and email, course, dates, and the certificate image) so anyone can verify it at its public link. Feedback and waitlist emails you choose to submit are also saved.',
+      'Only what verification needs. For guest sends we never store email addresses: we keep the recipient\'s name, the certificate name, the issuer, the issue date and the certificate design, because that is what each verification page shows. Sends from a free account also keep the recipient\'s email so you can see your send history. If you turn verification off before sending, nothing is stored except anonymous counts of how many certificates were sent. Feedback and waitlist emails you choose to submit are also saved.',
+  },
+  {
+    question: 'How does certificate verification work?',
+    answer:
+      'Every certificate you send gets its own public page at sendcert.org/verify/ followed by a unique ID, such as CERT-2026-K7QM-4TXP. The page shows the certificate with the recipient\'s name, the certificate name, who issued it, the issue date and its status. Anyone, such as an employer, a school or a licensing board, can open the link and confirm the certificate is genuine. IDs are random, so they can\'t be guessed, and an edited PDF won\'t match its verification page, which makes certificates much harder to fake. Verification is free and needs no account, for you or your recipients.',
+  },
+  {
+    question: 'Can recipients add their certificate to LinkedIn?',
+    answer:
+      'Yes. The certificate email and the verification page both have an "Add to LinkedIn" button that fills in the Licenses & certifications section of the recipient\'s profile, with a "Show credential" link back to the verification page. There is also a button to share the certificate in a LinkedIn post. Recipients only need to review and save.',
+  },
+  {
+    question: 'Can I turn verification off?',
+    answer:
+      'Yes. Verification is on by default, and you can switch it off in the email step before sending. With verification off, recipients still get their PDF by email, but no verification page is created and nothing about the certificates is stored.',
+  },
+  {
+    question: 'Do certificates expire?',
+    answer:
+      'Not by default. Certificates sent with SendCert have no expiry date, so their verification pages keep showing them as valid. Course completion and attendance certificates usually don\'t need one.',
   },
   {
     question: 'Can I add my logo to the certificate?',
@@ -69,7 +89,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'What happens when I reach the free limit?',
     answer:
-      'SendCert shows a message explaining the limit. As a guest, you can create a free account and keep going with up to 300 certificates per month. With an account, you can leave your email to hear about larger plans. A send that would go over the limit is rejected as a whole, so nothing is partially delivered. Counters reset automatically on the first day of each month.',
+      'SendCert shows a message before anything is sent. As a guest, you can create a free account and keep going with up to 300 certificates per month. With an account, you can leave your email to hear about larger plans. A send that would go over the limit is rejected as a whole, so nothing is partially delivered. Counters reset automatically on the first day of each month.',
   },
   {
     question: 'Does it work for any language?',

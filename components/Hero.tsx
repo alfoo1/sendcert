@@ -5,7 +5,7 @@ const VALUE_CHIPS = [
   'Free',
   'No sign-up',
   'PDF by email',
-  'Verification link with a free account',
+  'Verification link for every certificate',
 ];
 
 export default function Hero() {
@@ -18,7 +18,8 @@ export default function Hero() {
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-gray-600 lg:mx-0">
             Pick a design, add your list of names and emails, and each person gets their
-            own PDF certificate in their inbox. No design skills needed.
+            own PDF certificate by email, with a link anyone can use to check it&apos;s real.
+            No design skills needed.
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">

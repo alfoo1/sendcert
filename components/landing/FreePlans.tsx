@@ -5,7 +5,12 @@ const PLANS = [
     name: 'As a guest',
     tagline: 'No account needed',
     limit: '100 certificates / month',
-    features: ['All templates or your own design', 'PDF certificate by email', 'Delivery report'],
+    features: [
+      'All templates or your own design',
+      'PDF certificate by email',
+      'Verification link for every certificate',
+      'Add to LinkedIn in one click',
+    ],
     cta: { label: 'Start sending', href: '/app' },
     highlighted: false,
   },
@@ -15,7 +20,7 @@ const PLANS = [
     limit: '300 certificates / month',
     features: [
       'Everything in guest',
-      'Public verification link for every certificate',
+      '300 certificates a month',
       'History of your sends',
     ],
     cta: { label: 'Create a free account', href: '/login' },

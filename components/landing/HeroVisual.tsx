@@ -4,7 +4,7 @@ import { TemplateThumbnail } from '@/components/CertificateRenderer';
 // each recipient gets. Decorative only.
 export default function HeroVisual() {
   return (
-    <div className="relative mx-auto w-full max-w-xl pb-14 sm:pb-10" aria-hidden>
+    <div className="relative mx-auto w-full max-w-xl pb-24 sm:pb-16" aria-hidden>
       <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-gradient-to-br from-brand-100 via-white to-amber-50 sm:-inset-8" />
 
       <div className="rounded-xl bg-white p-2 shadow-2xl ring-1 ring-black/5 sm:-rotate-1">
@@ -30,6 +30,14 @@ export default function HeroVisual() {
           <span className="rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">PDF</span>
           <span className="truncate text-xs font-medium text-gray-700">
             certificate-Maria-Johnson.pdf
+          </span>
+        </div>
+        <div className="mt-2 flex gap-2">
+          <span className="flex-1 truncate rounded-md bg-brand-600 px-2 py-1.5 text-center text-[11px] font-semibold text-white">
+            View &amp; verify
+          </span>
+          <span className="flex-1 truncate rounded-md border border-gray-200 px-2 py-1.5 text-center text-[11px] font-semibold text-[#0A66C2]">
+            Add to LinkedIn
           </span>
         </div>
       </div>
