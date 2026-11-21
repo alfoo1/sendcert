@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { MDXRemote } from 'next-mdx-remote/rsc';
+import remarkGfm from 'remark-gfm';
 import {
   getPublishedPostBySlug,
   getPublishedSlugs,
@@ -111,7 +112,10 @@ export default async function BlogPostPage({ params }: Props) {
 
       {/* MDX content is rendered in a React Server Component via the /rsc
           entry point — no client runtime shipped for static articles. */}
-      <MDXRemote source={post.content} />
+      <MDXRemote
+        source={post.content}
+        options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }}
+      />
 
       <div className="not-prose mt-16 rounded-2xl border border-brand-200 bg-brand-50 p-6 text-center">
         <p className="text-lg font-semibold text-gray-900">

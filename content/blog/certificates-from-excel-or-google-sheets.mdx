@@ -1,0 +1,107 @@
+---
+slug: certificates-from-excel-or-google-sheets
+title: "How to Create Certificates From Excel or Google Sheets"
+description: Turn a spreadsheet of names and emails into personalized PDF certificates. How to prepare the columns, export the file, and send them all in one go.
+publishDate: 2026-12-26
+tags: [excel, google sheets, bulk certificates, csv]
+---
+
+To create certificates from a spreadsheet, keep two columns, name and email, clean the list, then upload it to a certificate tool that generates one PDF per row. In SendCert you can upload the Excel or CSV file directly, or copy the rows from Excel or Google Sheets and paste them in. Each person then gets their own certificate by email.
+
+## What columns does the spreadsheet need?
+
+Only two: one for the name that should appear on the certificate, and one for the email it should go to.
+
+| name | email |
+|---|---|
+| María José Fernández | mariajose@example.com |
+| Jordan Lee | jordan.lee@example.org |
+| Dana Rivera | d.rivera@example.edu |
+
+A few rules that save trouble:
+
+- **Use a header row.** SendCert recognizes headers like `name` or `full name`, and `email`, `e-mail` or `mail`.
+- **One person per row.** Don't merge cells or put two people on one line.
+- **Name as it should be printed.** If your list has first and last names in separate columns, join them first. In both Excel and Google Sheets, `=A2&" "&B2` combines first name (A) and last name (B).
+- **Extra columns are fine.** Columns like "department" or "score" are ignored, so you don't have to delete them.
+
+## How do I clean the list before sending?
+
+A two-minute cleanup prevents most failed or embarrassing certificates:
+
+1. **Remove extra spaces.** `=TRIM(A2)` strips leading and trailing spaces that sneak in from forms.
+2. **Fix capitalization carefully.** `=PROPER(A2)` turns "JORDAN LEE" into "Jordan Lee", but it also mangles names like "McDonald" or "de la Cruz". Check the results by eye.
+3. **Remove duplicates.** In Google Sheets use Data → Data cleanup → Remove duplicates; in Excel use Data → Remove Duplicates. SendCert also skips repeated emails when you add people.
+4. **Look for broken emails.** Missing "@", spaces, or typos like "gmial.com". SendCert flags invalid emails in red before you send.
+5. **Keep accents.** Names like "José" or "Zoë" should stay as they are; the PDF supports them.
+
+## How do I export from Google Sheets?
+
+1. Open the sheet with your list.
+2. Go to **File → Download → Comma Separated Values (.csv)**.
+3. Google Sheets downloads only the current tab, so make sure the list is on the active one.
+
+Or skip the download: select the two columns, copy, and paste them into SendCert's paste box. Each row becomes one recipient.
+
+## How do I export from Excel?
+
+You usually don't need to. SendCert accepts `.xlsx` and `.xls` files directly and reads the first sheet, so put your list there.
+
+If you prefer CSV, use **File → Save As → CSV UTF-8 (Comma delimited)**. The UTF-8 version keeps accented characters intact; the older plain "CSV" option can garble them.
+
+## Can I skip the file and paste names directly?
+
+Yes. For small groups, a file is overkill. In SendCert's recipients step you can:
+
+- **Type people one by one**: name, email, add.
+- **Paste a list**: one person per line, either copied straight from Excel or Google Sheets, or typed as `Name, email`.
+
+This is handy when your list lives in an email thread or a chat message rather than a spreadsheet.
+
+## How do I turn the list into certificates?
+
+1. **Open SendCert** and choose a built-in design or upload your own JPG or PNG.
+2. **Drag the name** to where it should appear, and pick the font, size and color.
+3. **Add extra text fields** for things that are the same for everyone: course name, date, hours, a signature line. Upload your logo if you have one.
+4. **Add recipients** by uploading the file or pasting the rows.
+5. **Check the table.** Fix anything marked invalid.
+6. **Write the email** with `{{name}}` for a personal greeting.
+7. **Send a test to yourself**, open the PDF, then send to everyone.
+
+As a guest you can send up to 30 certificates a month. For bigger lists, a free account (just your email) raises the limit to 150. For tips on large batches, see [how to create certificates in bulk](/blog/how-to-create-certificates-in-bulk).
+
+## What about mail merge in Word or Google Docs?
+
+Mail merge works, but it's a two-tool job: one merge to create the documents and another to email them.
+
+| Approach | Creates one PDF per person | Emails them for you | Effort for 50 people |
+|---|---|---|---|
+| Word or Docs mail merge | Yes | No, needs a second merge | High |
+| Design tool + manual email | Yes | No | Very high |
+| Certificate tool (SendCert) | Yes | Yes | A few minutes |
+
+Our guide on [emailing a certificate to each student automatically](/blog/email-certificate-to-students-automatically) compares these approaches in more depth.
+
+## What if some emails fail?
+
+Some addresses bounce because of typos or full inboxes. After sending, SendCert shows who received their certificate and who didn't, and lets you download the failed rows as a CSV. Fix them in your spreadsheet and send just those again.
+
+## Frequently asked questions
+
+### Does it work with Google Sheets directly?
+
+Copy and paste the rows, or download the sheet as CSV and upload it. There's no need to connect your Google account.
+
+### Can I use a spreadsheet with more columns?
+
+Yes. Only the name and email columns are used; the others are ignored.
+
+### What if my sheet has first and last names in separate columns?
+
+Combine them into one column first, for example with `=A2&" "&B2`, so the full name prints on the certificate.
+
+### Can I put a different date or course on each certificate?
+
+Extra text fields are the same for everyone in a send. If people need different details, split them into separate lists and send one batch per group, as with [webinar series](/blog/webinar-certificate-of-attendance).
+
+[Create your first certificate free →](/app)
