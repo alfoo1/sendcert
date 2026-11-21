@@ -1,12 +1,22 @@
 'use client';
 
+import { useTx } from '@/components/i18n/LocaleProvider';
+
 // Visual wizard progress — 5 steps.
-const STEP_LABELS = ['Template', 'Position', 'Recipients', 'Email', 'Send'];
+const STEP_LABELS = [
+  { en: 'Template', es: 'Plantilla' },
+  { en: 'Position', es: 'Diseño' },
+  { en: 'Recipients', es: 'Destinatarios' },
+  { en: 'Email', es: 'Correo' },
+  { en: 'Send', es: 'Enviar' },
+];
 
 export default function StepIndicator({ currentStep }: { currentStep: number }) {
+  const t = useTx();
   return (
     <ol className="flex items-center justify-between gap-2">
-      {STEP_LABELS.map((label, idx) => {
+      {STEP_LABELS.map((labels, idx) => {
+        const label = t(labels);
         const step = idx + 1;
         const isActive = step === currentStep;
         const isDone = step < currentStep;

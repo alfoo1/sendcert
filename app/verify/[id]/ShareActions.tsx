@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { trackEvent } from '@/components/Analytics';
+import { useTx } from '@/components/i18n/LocaleProvider';
 
 // Recipient actions on the verification page. LinkedIn buttons go through our
 // redirect (/verify/<id>/linkedin) so clicks are counted server-side.
 export default function ShareActions({ verifyId, pageUrl }: { verifyId: string; pageUrl: string }) {
   const [copied, setCopied] = useState(false);
+  const t = useTx();
 
   async function copyLink() {
     try {
@@ -14,7 +16,7 @@ export default function ShareActions({ verifyId, pageUrl }: { verifyId: string; 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      window.prompt('Copy this link:', pageUrl);
+      window.prompt(t({ en: 'Copy this link:', es: 'Copia este enlace:' }), pageUrl);
     }
     trackEvent('share_click', { kind: 'copy_link' });
     fetch('/api/share-event', {
@@ -36,7 +38,7 @@ export default function ShareActions({ verifyId, pageUrl }: { verifyId: string; 
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0a66c2] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#004182]"
       >
         <LinkedInIcon />
-        Add to LinkedIn profile
+        {t({ en: 'Add to LinkedIn profile', es: 'Agregar al perfil de LinkedIn' })}
       </a>
       <div className="grid grid-cols-2 gap-2.5">
         <a
@@ -46,14 +48,16 @@ export default function ShareActions({ verifyId, pageUrl }: { verifyId: string; 
           onClick={() => trackEvent('share_click', { kind: 'linkedin_share' })}
           className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
-          Share post
+          {t({ en: 'Share post', es: 'Publicar' })}
         </a>
         <button
           type="button"
           onClick={copyLink}
           className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-50"
         >
-          {copied ? 'Link copied ✓' : 'Copy link'}
+          {copied
+            ? t({ en: 'Link copied ✓', es: 'Enlace copiado ✓' })
+            : t({ en: 'Copy link', es: 'Copiar enlace' })}
         </button>
       </div>
     </div>

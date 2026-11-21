@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import matter from 'gray-matter';
+import type { Locale } from './i18n';
 
 // Frontmatter every article must declare.
 export type BlogPostMeta = {
@@ -16,7 +17,11 @@ export type BlogPost = BlogPostMeta & {
   readingMinutes: number;
 };
 
-const CONTENT_DIR = path.join(process.cwd(), 'content', 'blog');
+// English posts live in content/blog, Spanish ones in content/blog/es.
+function contentDir(locale: Locale): string {
+  const base = path.join(process.cwd(), 'content', 'blog');
+  return locale === 'en' ? base : path.join(base, locale);
+}
 
 /**
  * Word-based reading-time estimate. 200 wpm is the common rule of thumb for
@@ -32,9 +37,9 @@ function estimateReadingMinutes(markdown: string): number {
   return Math.max(1, Math.ceil(words / 200));
 }
 
-async function readPostFile(filename: string): Promise<BlogPost | null> {
+async function readPostFile(dir: string, filename: string): Promise<BlogPost | null> {
   if (!filename.endsWith('.mdx')) return null;
-  const filePath = path.join(CONTENT_DIR, filename);
+  const filePath = path.join(dir, filename);
   const raw = await readFile(filePath, 'utf8');
   const { data, content } = matter(raw);
 
@@ -67,15 +72,16 @@ async function readPostFile(filename: string): Promise<BlogPost | null> {
 /**
  * Returns EVERY post (published or scheduled). Used by sitemaps / admin views.
  */
-export async function getAllPosts(): Promise<BlogPost[]> {
+export async function getAllPosts(locale: Locale = 'en'): Promise<BlogPost[]> {
+  const dir = contentDir(locale);
   let entries: string[];
   try {
-    entries = await readdir(CONTENT_DIR);
+    entries = await readdir(dir);
   } catch {
     // Fresh checkout without content dir yet — treat as empty.
     return [];
   }
-  const posts = await Promise.all(entries.map(readPostFile));
+  const posts = await Promise.all(entries.map((name) => readPostFile(dir, name)));
   return posts
     .filter((p): p is BlogPost => p !== null)
     .sort((a, b) => b.publishDate.localeCompare(a.publishDate));
@@ -86,8 +92,11 @@ export async function getAllPosts(): Promise<BlogPost[]> {
  * function the public-facing blog index calls — future-dated articles stay
  * invisible until their scheduled day.
  */
-export async function getPublishedPosts(now: Date = new Date()): Promise<BlogPost[]> {
-  const all = await getAllPosts();
+export async function getPublishedPosts(
+  now: Date = new Date(),
+  locale: Locale = 'en',
+): Promise<BlogPost[]> {
+  const all = await getAllPosts(locale);
   const cutoff = now.toISOString();
   return all.filter((p) => p.publishDate <= cutoff);
 }
@@ -99,8 +108,9 @@ export async function getPublishedPosts(now: Date = new Date()): Promise<BlogPos
 export async function getPublishedPostBySlug(
   slug: string,
   now: Date = new Date(),
+  locale: Locale = 'en',
 ): Promise<BlogPost | null> {
-  const all = await getPublishedPosts(now);
+  const all = await getPublishedPosts(now, locale);
   return all.find((p) => p.slug === slug) ?? null;
 }
 
@@ -109,7 +119,7 @@ export async function getPublishedPostBySlug(
  * at build time. We still mark pages with `revalidate` so ISR can reveal
  * scheduled posts without a redeploy.
  */
-export async function getPublishedSlugs(): Promise<string[]> {
-  const all = await getPublishedPosts();
+export async function getPublishedSlugs(locale: Locale = 'en'): Promise<string[]> {
+  const all = await getPublishedPosts(new Date(), locale);
   return all.map((p) => p.slug);
 }

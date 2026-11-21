@@ -14,6 +14,7 @@ import {
   type ServerSmtpConfig,
 } from '@/lib/mail';
 import { isValidEmail } from '@/lib/validation';
+import { isLocale, tx, type Locale } from '@/lib/i18n';
 import { getClientIp } from '@/lib/rateLimit';
 import {
   createServiceSupabaseClient,
@@ -71,6 +72,8 @@ type SendEmailsBody = {
   courseName?: string;
   // 'custom' for an uploaded design, otherwise the built-in template id.
   templateKind?: string;
+  // Language of the wizard: email card, verification page and share texts.
+  locale?: string;
 };
 
 type ResultEntry = {
@@ -127,9 +130,13 @@ export async function POST(req: NextRequest) {
     courseName,
     templateKind,
   } = body;
+  const locale: Locale = isLocale(body.locale) ? body.locale : 'en';
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
-    return NextResponse.json({ error: 'Recipient list is empty.' }, { status: 400 });
+    return NextResponse.json(
+      { error: tx(locale, { en: 'Recipient list is empty.', es: 'La lista de destinatarios está vacía.' }) },
+      { status: 400 },
+    );
   }
 
   const validRecipients = recipients.filter(
@@ -137,7 +144,7 @@ export async function POST(req: NextRequest) {
   );
   if (validRecipients.length === 0) {
     return NextResponse.json(
-      { error: 'No valid recipients to send to.' },
+      { error: tx(locale, { en: 'No valid recipients to send to.', es: 'No hay destinatarios válidos para enviar.' }) },
       { status: 400 },
     );
   }
@@ -201,8 +208,14 @@ export async function POST(req: NextRequest) {
     : await consumeGuestQuota(ipHash, validRecipients.length);
   if (!quota.allowed) {
     const error = userId
-      ? `You've reached the ${USER_LIMIT}-certificate limit for this month.`
-      : `Guests can send up to ${GUEST_LIMIT} certificates per month. Create a free account to send up to ${USER_LIMIT}.`;
+      ? tx(locale, {
+          en: `You've reached the ${USER_LIMIT}-certificate limit for this month.`,
+          es: `Llegaste al límite de ${USER_LIMIT} certificados de este mes.`,
+        })
+      : tx(locale, {
+          en: `Guests can send up to ${GUEST_LIMIT} certificates per month. Create a free account to send up to ${USER_LIMIT}.`,
+          es: `Sin cuenta puedes enviar hasta ${GUEST_LIMIT} certificados por mes. Crea una cuenta gratis para enviar hasta ${USER_LIMIT}.`,
+        });
     return NextResponse.json(
       {
         error,
@@ -258,6 +271,7 @@ export async function POST(req: NextRequest) {
         .insert({
           user_id: userId,
           ip_hash: userId ? null : ipHash,
+          locale,
           template_image: `data:image/jpeg;base64,${preview.toString('base64')}`,
           width,
           height,
@@ -353,6 +367,7 @@ export async function POST(req: NextRequest) {
             verifyUrl: verifyId ? verifyUrlFor(verifyId) : undefined,
             linkedInUrl: verifyId ? linkedInRedirectFor(verifyId, 'add', 'email') : undefined,
             verifyId: verifyId ?? undefined,
+            locale,
           });
           sent += 1;
           result = { email, name, status: 'ok', verifyId: verifyId ?? undefined };

@@ -144,17 +144,17 @@ export default async function Image({ params }: { params: { id: string } }) {
                 letterSpacing: 1,
               }}
             >
-              ✓ VERIFIED CERTIFICATE
+              {cert.locale === 'es' ? '✓ CERTIFICADO VERIFICADO' : '✓ VERIFIED CERTIFICATE'}
             </div>
             <div style={{ display: 'flex', marginTop: 28, fontSize: 46, fontWeight: 700, color: '#0f172a', lineHeight: 1.1 }}>
               {cert.recipient_name}
             </div>
             <div style={{ display: 'flex', marginTop: 16, fontSize: 28, color: '#334155', lineHeight: 1.25 }}>
-              {certificateTitle(cert)}
+              {certificateTitle(cert, cert.locale)}
             </div>
             <div style={{ display: 'flex', marginTop: 18, fontSize: 22, color: '#64748b' }}>
               {cert.issuer_name ? `${cert.issuer_name} · ` : ''}
-              {formatDate(cert.issued_date)}
+              {formatDate(cert.issued_date, cert.locale)}
             </div>
           </div>
 
@@ -178,7 +178,7 @@ export default async function Image({ params }: { params: { id: string } }) {
                 S
               </div>
               <div style={{ display: 'flex', marginLeft: 10, fontSize: 22, fontWeight: 700, color: '#0f172a' }}>
-                Verified on sendcert.org
+                {cert.locale === 'es' ? 'Verificado en sendcert.org' : 'Verified on sendcert.org'}
               </div>
             </div>
           </div>

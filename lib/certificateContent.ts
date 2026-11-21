@@ -1,3 +1,5 @@
+import type { Locale } from '@/lib/i18n';
+
 // Editable content shared across built-in templates. Every field drives the
 // live HTML preview; `CertificateRenderer` decides how each template lays them out.
 export type CertificateContent = {
@@ -30,15 +32,15 @@ type Defaults = {
   signer: string;
 };
 
-function buildDefaults(d: Defaults): CertificateContent {
+function buildDefaults(d: Defaults, locale: Locale = 'en'): CertificateContent {
   return {
-    institutionName: 'Example Academy',
+    institutionName: locale === 'es' ? 'Academia Ejemplo' : 'Example Academy',
     subtitleLabel: d.subtitle,
     certificateTitle: d.title,
     bodyText: d.body,
     footerText: d.footer,
     signerName: d.signer,
-    dateText: 'Date',
+    dateText: locale === 'es' ? 'Fecha' : 'Date',
     accentColor: d.accent,
     logoDataUrl: null,
     logoX: 5,
@@ -98,6 +100,77 @@ export const DEFAULT_CONTENT_BY_TEMPLATE: Record<string, CertificateContent> = {
   }),
 };
 
-export function getDefaultContent(templateId: string): CertificateContent {
-  return DEFAULT_CONTENT_BY_TEMPLATE[templateId] ?? DEFAULT_CONTENT_BY_TEMPLATE.elegant;
+// Neutral Latin American Spanish defaults (same accents as English).
+export const DEFAULT_CONTENT_BY_TEMPLATE_ES: Record<string, CertificateContent> = {
+  elegant: buildDefaults(
+    {
+      accent: '#1e3a5f',
+      subtitle: 'Certificado de',
+      title: 'Reconocimiento',
+      body: 'Este certificado se otorga con orgullo a',
+      footer: 'por su destacado desempeño y la finalización exitosa del programa.',
+      signer: 'Director del programa',
+    },
+    'es',
+  ),
+  minimal: buildDefaults(
+    {
+      accent: '#0f766e',
+      subtitle: 'Certificado oficial',
+      title: 'Certificado de finalización',
+      body: 'Se certifica que',
+      footer: 'completó con éxito el curso.',
+      signer: 'Instructor',
+    },
+    'es',
+  ),
+  bold: buildDefaults(
+    {
+      accent: '#4f46e5',
+      subtitle: 'Certificado',
+      title: 'de excelencia',
+      body: 'Otorgado con orgullo a',
+      footer: 'por completar el programa y demostrar habilidades sobresalientes.',
+      signer: 'Instructor principal',
+    },
+    'es',
+  ),
+  academic: buildDefaults(
+    {
+      accent: '#7f1d1d',
+      subtitle: 'Certificado',
+      title: 'de finalización',
+      body: 'Se certifica que',
+      footer: 'cumplió satisfactoriamente con todos los requisitos del curso.',
+      signer: 'Director académico',
+    },
+    'es',
+  ),
+  corporate: buildDefaults(
+    {
+      accent: '#2563eb',
+      subtitle: 'Certificado',
+      title: 'Capacitación completada',
+      body: 'Se certifica que',
+      footer: 'completó la capacitación requerida y cumplió todos los criterios de evaluación.',
+      signer: 'Responsable de capacitación',
+    },
+    'es',
+  ),
+  friendly: buildDefaults(
+    {
+      accent: '#ea580c',
+      subtitle: '¡Bien hecho!',
+      title: 'Certificado de participación',
+      body: 'Este certificado se otorga a',
+      footer: 'por participar en el taller con entusiasmo y creatividad.',
+      signer: 'Coordinador del taller',
+    },
+    'es',
+  ),
+};
+
+export function getDefaultContent(templateId: string, locale: Locale = 'en'): CertificateContent {
+  const table = locale === 'es' ? DEFAULT_CONTENT_BY_TEMPLATE_ES : DEFAULT_CONTENT_BY_TEMPLATE;
+  return table[templateId] ?? table.elegant;
 }

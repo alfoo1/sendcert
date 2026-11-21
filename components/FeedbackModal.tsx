@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { trackEvent } from './Analytics';
+import { useTx } from '@/components/i18n/LocaleProvider';
 
 type Props = {
   open: boolean;
@@ -18,6 +19,7 @@ export default function FeedbackModal({ open, recipientCount, onClose }: Props) 
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showThanks, setShowThanks] = useState(false);
+  const t = useTx();
 
   // Reset local form state each time the modal opens so consecutive sends in
   // the same session don't inherit the previous rating.
@@ -73,15 +75,20 @@ export default function FeedbackModal({ open, recipientCount, onClose }: Props) 
         {showThanks ? (
           <div className="py-8 text-center">
             <div className="text-4xl">🙌</div>
-            <p className="mt-3 text-lg font-semibold text-gray-900">Thanks for your feedback!</p>
+            <p className="mt-3 text-lg font-semibold text-gray-900">
+              {t({ en: 'Thanks for your feedback!', es: '¡Gracias por tu opinión!' })}
+            </p>
           </div>
         ) : (
           <>
             <h3 className="text-lg font-semibold text-gray-900">
-              How was your experience?
+              {t({ en: 'How was your experience?', es: '¿Cómo fue tu experiencia?' })}
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Your feedback helps us make SendCert better.
+              {t({
+                en: 'Your feedback helps us make SendCert better.',
+                es: 'Tu opinión nos ayuda a mejorar SendCert.',
+              })}
             </p>
 
             {/* Star rating */}
@@ -95,7 +102,10 @@ export default function FeedbackModal({ open, recipientCount, onClose }: Props) 
                   type="button"
                   onClick={() => setRating(n)}
                   onMouseEnter={() => setHoverRating(n)}
-                  aria-label={`${n} star${n === 1 ? '' : 's'}`}
+                  aria-label={t({
+                    en: `${n} star${n === 1 ? '' : 's'}`,
+                    es: `${n} ${n === 1 ? 'estrella' : 'estrellas'}`,
+                  })}
                   className="text-4xl transition-transform hover:scale-110"
                   style={{
                     color: n <= displayRating ? '#f59e0b' : '#d1d5db',
@@ -108,13 +118,16 @@ export default function FeedbackModal({ open, recipientCount, onClose }: Props) 
 
             {/* Optional comment */}
             <label className="mt-5 block text-sm font-medium text-gray-700">
-              Any feedback? (optional)
+              {t({ en: 'Any feedback? (optional)', es: '¿Algún comentario? (opcional)' })}
             </label>
             <textarea
               rows={3}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Tell us what worked or what could be better…"
+              placeholder={t({
+                en: 'Tell us what worked or what could be better…',
+                es: 'Cuéntanos qué funcionó bien o qué podríamos mejorar…',
+              })}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
 
@@ -125,7 +138,7 @@ export default function FeedbackModal({ open, recipientCount, onClose }: Props) 
                 disabled={submitting}
                 className="text-sm text-gray-500 underline hover:text-gray-700 disabled:opacity-50"
               >
-                Skip
+                {t({ en: 'Skip', es: 'Omitir' })}
               </button>
               <button
                 type="button"
@@ -133,7 +146,9 @@ export default function FeedbackModal({ open, recipientCount, onClose }: Props) 
                 disabled={submitting || rating === 0}
                 className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {submitting ? 'Sending…' : 'Submit feedback'}
+                {submitting
+                  ? t({ en: 'Sending…', es: 'Enviando…' })
+                  : t({ en: 'Submit feedback', es: 'Enviar opinión' })}
               </button>
             </div>
           </>

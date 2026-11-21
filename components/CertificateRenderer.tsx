@@ -11,6 +11,8 @@ import {
 import { getDefaultContent, type CertificateContent } from '@/lib/certificateContent';
 import { PRESET_TEMPLATES, type NameFont } from '@/lib/templates';
 import { sans, serif } from '@/components/landing/fonts';
+import { useLocale } from '@/components/i18n/LocaleProvider';
+import type { Locale } from '@/lib/i18n';
 
 // Natural size of every template: US Letter landscape at 1200px wide.
 // html2canvas captures at this size, so the PDF matches the preview.
@@ -86,11 +88,17 @@ const NAME_FONTS: Record<NameFont, string> = {
  */
 export function TemplateThumbnail({
   templateId,
-  sampleName = 'Maria Johnson',
+  sampleName,
+  locale: localeProp,
 }: {
   templateId: string;
   sampleName?: string;
+  // Optional: defaults to the surrounding LocaleProvider (English if none).
+  locale?: Locale;
 }) {
+  const contextLocale = useLocale();
+  const locale = localeProp ?? contextLocale;
+  const name = sampleName ?? (locale === 'es' ? 'María González' : 'Maria Johnson');
   const preset = PRESET_TEMPLATES.find((p) => p.id === templateId);
   const ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -131,7 +139,7 @@ export function TemplateThumbnail({
           visibility: scale ? 'visible' : 'hidden',
         }}
       >
-        <CertificateRenderer templateId={templateId} content={getDefaultContent(templateId)} />
+        <CertificateRenderer templateId={templateId} content={getDefaultContent(templateId, locale)} />
         {preset && (
           <div
             style={{
@@ -146,7 +154,7 @@ export function TemplateThumbnail({
               fontFamily: NAME_FONTS[preset.defaultFontFamily],
             }}
           >
-            {sampleName}
+            {name}
           </div>
         )}
       </div>

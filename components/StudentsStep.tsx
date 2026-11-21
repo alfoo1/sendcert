@@ -6,6 +6,7 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { isValidEmail } from '@/lib/validation';
 import { trackEvent } from './Analytics';
+import { useLocale, useTx } from '@/components/i18n/LocaleProvider';
 
 export type Recipient = { name: string; email: string };
 
@@ -16,9 +17,36 @@ type Props = {
 
 type Mode = 'file' | 'manual';
 
-// Common header aliases we accept (case-insensitive, trimmed).
-const NAME_KEYS = ['name', 'nombre', 'nombre completo', 'full name'];
-const EMAIL_KEYS = ['email', 'correo', 'mail', 'e-mail'];
+// Common header aliases we accept (case-insensitive, trimmed), in English
+// and Spanish so the same spreadsheet works on /app and /es/app.
+const NAME_KEYS = [
+  'name',
+  'full name',
+  'nombre',
+  'nombre completo',
+  'nombre y apellido',
+  'nombres',
+];
+const EMAIL_KEYS = [
+  'email',
+  'e-mail',
+  'mail',
+  'correo',
+  'correo electrónico',
+  'correo electronico',
+  'email address',
+];
+// A pasted line with no email whose cells are all column titles
+// ("name, email", "nombre\tcorreo") is a header row and gets dropped.
+const HEADER_CELLS = new Set([...NAME_KEYS, ...EMAIL_KEYS]);
+
+function isPastedHeader(line: string): boolean {
+  const cells = line
+    .split(/[,;\t]|\s{2,}/)
+    .map((c) => c.replace(/["']/g, '').trim().toLowerCase())
+    .filter(Boolean);
+  return cells.length > 0 && cells.every((c) => HEADER_CELLS.has(c));
+}
 
 const EMAIL_IN_TEXT = /[^\s<>,;"']+@[^\s<>,;"']+/;
 
@@ -52,7 +80,7 @@ function parsePasted(text: string): Recipient[] {
   return text
     .split(/\r?\n/)
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter((line) => line && !isPastedHeader(line))
     .map((line) => {
       const email = line.match(EMAIL_IN_TEXT)?.[0] ?? '';
       const name = line
@@ -61,8 +89,7 @@ function parsePasted(text: string): Recipient[] {
         .replace(/\s+/g, ' ')
         .trim();
       return { name, email };
-    })
-    .filter((r) => !(r.name.toLowerCase() === 'name' && !r.email));
+    });
 }
 
 /** Appends rows, skipping emails already in the list (case-insensitive). */
@@ -88,6 +115,8 @@ function mergeUnique(
 // Step 3: add recipients from a file, by typing, or by pasting a list. The
 // table is editable so bad rows can be fixed without re-uploading.
 export default function StudentsStep({ recipients, onRecipientsChange }: Props) {
+  const locale = useLocale();
+  const t = useTx();
   const [mode, setMode] = useState<Mode>('file');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -101,7 +130,10 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
     const added = list.length - (replace ? 0 : recipients.length);
     setNotice(
       skipped > 0
-        ? `Added ${added}. Skipped ${skipped} duplicate email${skipped === 1 ? '' : 's'}.`
+        ? t({
+            en: `Added ${added}. Skipped ${skipped} duplicate email${skipped === 1 ? '' : 's'}.`,
+            es: `Agregamos ${added}. Omitimos ${skipped} ${skipped === 1 ? 'correo duplicado' : 'correos duplicados'}.`,
+          })
         : null,
     );
     trackEvent('recipients_added', { method, count: added });
@@ -123,7 +155,14 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
               transformHeader: (h) => h.trim().toLowerCase(),
               complete: (res) =>
                 res.errors.length > 0
-                  ? reject(new Error(`CSV parse error: ${res.errors[0].message}`))
+                  ? reject(
+                      new Error(
+                        t({
+                          en: `CSV parse error: ${res.errors[0].message}`,
+                          es: `Error al leer el CSV: ${res.errors[0].message}`,
+                        }),
+                      ),
+                    )
                   : resolve(res.data),
             });
           });
@@ -132,7 +171,12 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
           const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
           const sheetName = workbook.SheetNames[0];
           if (!sheetName) {
-            setError('The Excel file appears to be empty.');
+            setError(
+              t({
+                en: 'The Excel file appears to be empty.',
+                es: 'El archivo de Excel parece estar vacío.',
+              }),
+            );
             return;
           }
           rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
@@ -140,22 +184,36 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
             { defval: '' },
           );
         } else {
-          setError('Unsupported file type. Please upload a CSV or Excel file.');
+          setError(
+            t({
+              en: 'Unsupported file type. Please upload a CSV or Excel file.',
+              es: 'Tipo de archivo no compatible. Sube un archivo CSV o Excel.',
+            }),
+          );
           return;
         }
 
         const parsed = rows.map(normalizeRow).filter((r) => r.name || r.email);
         if (parsed.length === 0) {
-          setError('No rows found. Make sure the first row has "name" and "email" columns.');
+          setError(
+            t({
+              en: 'No rows found. Make sure the first row has "name" and "email" columns.',
+              es: 'No encontramos filas. Revisa que la primera fila tenga las columnas "nombre" y "correo".',
+            }),
+          );
           return;
         }
         addRecipients(parsed, 'file', true);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to read the file.');
+        setError(
+          err instanceof Error
+            ? err.message
+            : t({ en: 'Failed to read the file.', es: 'No pudimos leer el archivo.' }),
+        );
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recipients, onRecipientsChange],
+    [recipients, onRecipientsChange, t],
   );
 
   const onDrop = useCallback(
@@ -213,9 +271,14 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Add your recipients</h2>
+        <h2 className="text-2xl font-bold text-gray-900">
+          {t({ en: 'Add your recipients', es: 'Agrega a tus destinatarios' })}
+        </h2>
         <p className="mt-1 text-gray-600">
-          Upload a spreadsheet, or type and paste names and emails.
+          {t({
+            en: 'Upload a spreadsheet, or type and paste names and emails.',
+            es: 'Sube una hoja de cálculo, o escribe y pega nombres y correos.',
+          })}
         </p>
       </div>
 
@@ -227,7 +290,7 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
           onClick={() => setMode('file')}
           className={tabClass(mode === 'file')}
         >
-          Upload a file
+          {t({ en: 'Upload a file', es: 'Subir un archivo' })}
         </button>
         <button
           type="button"
@@ -236,7 +299,7 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
           onClick={() => setMode('manual')}
           className={tabClass(mode === 'manual')}
         >
-          Type or paste
+          {t({ en: 'Type or paste', es: 'Escribir o pegar' })}
         </button>
       </div>
 
@@ -252,33 +315,51 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
           <input {...getInputProps()} />
           <div className="text-3xl">📄</div>
           <p className="mt-2 font-medium text-gray-900">
-            {isDragActive ? 'Drop the file here' : 'Drag a file here or click to upload'}
+            {isDragActive
+              ? t({ en: 'Drop the file here', es: 'Suelta el archivo aquí' })
+              : t({
+                  en: 'Drag a file here or click to upload',
+                  es: 'Arrastra un archivo aquí o haz clic para subirlo',
+                })}
           </p>
           <p className="mt-1 text-sm text-gray-500">
-            CSV or Excel (.csv, .xlsx, .xls) with <code>name</code> and{' '}
-            <code>email</code> columns. Uploading replaces the current list.
+            {locale === 'es' ? (
+              <>
+                CSV o Excel (.csv, .xlsx, .xls) con las columnas <code>nombre</code> y{' '}
+                <code>correo</code>. Al subirlo se reemplaza la lista actual.
+              </>
+            ) : (
+              <>
+                CSV or Excel (.csv, .xlsx, .xls) with <code>name</code> and{' '}
+                <code>email</code> columns. Uploading replaces the current list.
+              </>
+            )}
           </p>
         </div>
       ) : (
         <div className="space-y-5">
           <form onSubmit={handleAddOne} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-            <label className="sr-only" htmlFor="recipient-name">Name</label>
+            <label className="sr-only" htmlFor="recipient-name">
+              {t({ en: 'Name', es: 'Nombre' })}
+            </label>
             <input
               id="recipient-name"
               type="text"
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
-              placeholder="Full name"
+              placeholder={t({ en: 'Full name', es: 'Nombre completo' })}
               autoComplete="off"
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
-            <label className="sr-only" htmlFor="recipient-email">Email</label>
+            <label className="sr-only" htmlFor="recipient-email">
+              {t({ en: 'Email', es: 'Correo' })}
+            </label>
             <input
               id="recipient-email"
               type="email"
               value={draftEmail}
               onChange={(e) => setDraftEmail(e.target.value)}
-              placeholder="email@example.com"
+              placeholder={t({ en: 'email@example.com', es: 'correo@ejemplo.com' })}
               autoComplete="off"
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
@@ -287,24 +368,30 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
               disabled={!canAddOne}
               className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Add
+              {t({ en: 'Add', es: 'Agregar' })}
             </button>
           </form>
 
           <div>
             <label htmlFor="recipient-paste" className="block text-sm font-medium text-gray-700">
-              Or paste a list
+              {t({ en: 'Or paste a list', es: 'O pega una lista' })}
             </label>
             <p className="text-xs text-gray-500">
-              One person per line. Copy straight from Excel or Google Sheets, or use{' '}
-              <code>Name, email</code>.
+              {t({
+                en: 'One person per line. Copy straight from Excel or Google Sheets, or use',
+                es: 'Una persona por línea. Copia directo desde Excel o Google Sheets, o usa',
+              })}{' '}
+              <code>{t({ en: 'Name, email', es: 'Nombre, correo' })}</code>.
             </p>
             <textarea
               id="recipient-paste"
               rows={4}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
-              placeholder={'Maria Johnson, maria@example.com\nJohn Martinez\tjohn@example.com'}
+              placeholder={t({
+                en: 'Maria Johnson, maria@example.com\nJohn Martinez\tjohn@example.com',
+                es: 'María González, maria@ejemplo.com\nJuan Martínez\tjuan@ejemplo.com',
+              })}
               className="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-sm"
             />
             <button
@@ -313,7 +400,12 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
               disabled={pastedCount === 0}
               className="mt-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {pastedCount > 0 ? `Add ${pastedCount} from the list` : 'Add from the list'}
+              {pastedCount > 0
+                ? t({
+                    en: `Add ${pastedCount} from the list`,
+                    es: `Agregar ${pastedCount} de la lista`,
+                  })
+                : t({ en: 'Add from the list', es: 'Agregar de la lista' })}
             </button>
           </div>
         </div>
@@ -334,11 +426,11 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
         <>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="rounded-full bg-green-100 px-3 py-1 font-medium text-green-800">
-              ✓ {validCount} ready to send
+              ✓ {validCount} {t({ en: 'ready to send', es: 'listos para enviar' })}
             </span>
             {invalidCount > 0 && (
               <span className="rounded-full bg-red-100 px-3 py-1 font-medium text-red-800">
-                {invalidCount} need a fix
+                {invalidCount} {t({ en: 'need a fix', es: 'por corregir' })}
               </span>
             )}
             <button
@@ -349,7 +441,7 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
               }}
               className="ml-auto text-sm text-gray-500 underline hover:text-gray-700"
             >
-              Clear list
+              {t({ en: 'Clear list', es: 'Vaciar lista' })}
             </button>
           </div>
 
@@ -358,10 +450,10 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
               <thead className="sticky top-0 z-10 bg-gray-50 text-left text-gray-600">
                 <tr>
                   <th className="w-10 px-3 py-2 font-medium">#</th>
-                  <th className="px-3 py-2 font-medium">Name</th>
-                  <th className="px-3 py-2 font-medium">Email</th>
+                  <th className="px-3 py-2 font-medium">{t({ en: 'Name', es: 'Nombre' })}</th>
+                  <th className="px-3 py-2 font-medium">{t({ en: 'Email', es: 'Correo' })}</th>
                   <th className="w-10 px-3 py-2">
-                    <span className="sr-only">Remove</span>
+                    <span className="sr-only">{t({ en: 'Remove', es: 'Quitar' })}</span>
                   </th>
                 </tr>
               </thead>
@@ -376,8 +468,11 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
                         <input
                           value={r.name}
                           onChange={(e) => updateRow(i, { name: e.target.value })}
-                          placeholder="Missing name"
-                          aria-label={`Name for row ${i + 1}`}
+                          placeholder={t({ en: 'Missing name', es: 'Falta el nombre' })}
+                          aria-label={t({
+                            en: `Name for row ${i + 1}`,
+                            es: `Nombre de la fila ${i + 1}`,
+                          })}
                           className={`w-full rounded border bg-transparent px-2 py-1 ${
                             nameMissing
                               ? 'border-red-300 placeholder:text-red-400'
@@ -389,8 +484,11 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
                         <input
                           value={r.email}
                           onChange={(e) => updateRow(i, { email: e.target.value })}
-                          placeholder="Missing email"
-                          aria-label={`Email for row ${i + 1}`}
+                          placeholder={t({ en: 'Missing email', es: 'Falta el correo' })}
+                          aria-label={t({
+                            en: `Email for row ${i + 1}`,
+                            es: `Correo de la fila ${i + 1}`,
+                          })}
                           className={`w-full rounded border bg-transparent px-2 py-1 font-mono text-xs ${
                             emailInvalid
                               ? 'border-red-300 text-red-700 placeholder:text-red-400'
@@ -402,7 +500,7 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
                         <button
                           type="button"
                           onClick={() => removeRow(i)}
-                          aria-label={`Remove row ${i + 1}`}
+                          aria-label={t({ en: `Remove row ${i + 1}`, es: `Quitar fila ${i + 1}` })}
                           className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                         >
                           ×
@@ -417,8 +515,10 @@ export default function StudentsStep({ recipients, onRecipientsChange }: Props) 
 
           <p className="flex items-start gap-2 text-xs text-gray-500">
             <span aria-hidden>🔒</span>
-            Your list stays in this browser until you click Send. Guest sends aren&apos;t
-            stored.
+            {t({
+              en: "Your list stays in this browser until you click Send. Guest sends aren't stored.",
+              es: 'Tu lista queda en este navegador hasta que hagas clic en Enviar. Los envíos como invitado no se guardan.',
+            })}
           </p>
         </>
       )}

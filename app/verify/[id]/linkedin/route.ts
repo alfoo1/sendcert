@@ -22,10 +22,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const credential = {
     verifyId: cert.verify_id,
-    certificateName: certificateTitle(cert),
+    certificateName: certificateTitle(cert, cert.locale),
     issuerName: cert.issuer_name,
     issuedDate: cert.issued_date,
     expiryDate: cert.expiry_date,
+    locale: cert.locale,
   };
   const target = type === 'add' ? linkedInAddToProfileUrl(credential) : linkedInShareUrl(credential);
   return NextResponse.redirect(target, 302);

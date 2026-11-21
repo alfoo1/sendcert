@@ -10,6 +10,7 @@ import {
   sendMail,
 } from '@/lib/mail';
 import { isValidEmail } from '@/lib/validation';
+import { isLocale, tx, type Locale } from '@/lib/i18n';
 
 export const runtime = 'nodejs';
 // Single send — no need for a long timeout.
@@ -43,6 +44,7 @@ type SendTestBody = {
     verification?: boolean;
   };
   extraFields?: ExtraFieldPayload[];
+  locale?: string;
 };
 
 /**
@@ -61,15 +63,19 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as SendTestBody;
     const { testName, testEmail, templateDataUrl, templateId, textConfig, emailConfig, extraFields } = body;
 
+    const locale: Locale = isLocale(body.locale) ? body.locale : 'en';
     const name = (testName ?? '').trim();
     const email = (testEmail ?? '').trim();
 
     if (!name) {
-      return NextResponse.json({ error: 'Test name is required.' }, { status: 400 });
+      return NextResponse.json(
+        { error: tx(locale, { en: 'Test name is required.', es: 'Falta el nombre de prueba.' }) },
+        { status: 400 },
+      );
     }
     if (!isValidEmail(email)) {
       return NextResponse.json(
-        { error: 'Please enter a valid test email address.' },
+        { error: tx(locale, { en: 'Please enter a valid test email address.', es: 'Ingresa un correo de prueba válido.' }) },
         { status: 400 },
       );
     }
@@ -144,6 +150,7 @@ export async function POST(req: NextRequest) {
         },
       ],
       previewVerification: emailConfig.verification !== false,
+      locale,
     });
 
     return NextResponse.json({ ok: true });

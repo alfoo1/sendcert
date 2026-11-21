@@ -9,6 +9,8 @@ import { isValidEmail } from '@/lib/validation';
 import WaitlistModal from './WaitlistModal';
 import FeedbackModal from './FeedbackModal';
 import { trackEvent } from './Analytics';
+import { useLocale, useTx } from '@/components/i18n/LocaleProvider';
+import { localizePath, tx, type Locale } from '@/lib/i18n';
 
 type Props = {
   templateDataUrl: string | null;
@@ -22,6 +24,9 @@ type Props = {
   onResetAudience: () => void;
   // 'custom' for an uploaded design, otherwise the built-in template id.
   templateKind: string;
+  // Language of the wizard; sent to the API so emails and verification pages
+  // match. Defaults to the LocaleProvider's locale.
+  locale?: Locale;
 };
 
 // Converts UI-side extra fields to the wire shape the API expects.
@@ -102,19 +107,26 @@ async function* parseEventStream<T>(
 }
 
 // Format seconds as "≈ 12s" / "≈ 1m 30s" depending on magnitude.
-function formatEta(seconds: number): string {
-  if (seconds < 60) return `≈ ${Math.ceil(seconds)}s remaining`;
+function formatEta(seconds: number, locale: Locale): string {
+  if (seconds < 60) {
+    const s = Math.ceil(seconds);
+    return tx(locale, { en: `≈ ${s}s remaining`, es: `≈ ${s} s restantes` });
+  }
   const mins = Math.floor(seconds / 60);
   const secs = Math.ceil(seconds % 60);
-  return `≈ ${mins}m ${secs}s remaining`;
+  return tx(locale, {
+    en: `≈ ${mins}m ${secs}s remaining`,
+    es: `≈ ${mins} min ${secs} s restantes`,
+  });
 }
 
 // Triggers a client-side CSV download with the failed recipients so the user
 // can fix their CSV and retry.
-function downloadFailedCsv(results: ResultEntry[]) {
+function downloadFailedCsv(results: ResultEntry[], locale: Locale) {
   const failed = results.filter((r) => r.status === 'error');
   if (failed.length === 0) return;
-  const header = 'name,email,error';
+  // Spanish headers are accepted by StudentsStep, so the file can be re-uploaded.
+  const header = tx(locale, { en: 'name,email,error', es: 'nombre,correo,error' });
   const rows = failed.map(
     (r) =>
       `"${r.name.replace(/"/g, '""')}","${r.email.replace(/"/g, '""')}","${(r.error ?? '').replace(/"/g, '""')}"`,
@@ -124,7 +136,10 @@ function downloadFailedCsv(results: ResultEntry[]) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'failed-recipients.csv';
+  a.download = tx(locale, {
+    en: 'failed-recipients.csv',
+    es: 'destinatarios-con-error.csv',
+  });
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -141,7 +156,11 @@ export default function PreviewStep({
   onResetAll,
   onResetAudience,
   templateKind,
+  locale: localeProp,
 }: Props) {
+  const contextLocale = useLocale();
+  const locale = localeProp ?? contextLocale;
+  const t = (en: string, es: string) => tx(locale, { en, es });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -154,7 +173,7 @@ export default function PreviewStep({
   const completedSignatureRef = useRef<string | null>(null);
 
   const firstValid = recipients.find((r) => r.name && isValidEmail(r.email));
-  const previewName = firstValid?.name ?? 'Maria Johnson';
+  const previewName = firstValid?.name ?? (locale === 'es' ? 'María González' : 'Maria Johnson');
 
   // Test-email state
   const [testName, setTestName] = useState('');
@@ -191,7 +210,9 @@ export default function PreviewStep({
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error ?? 'Could not generate preview');
+          throw new Error(
+            data.error ?? t('Could not generate preview', 'No pudimos generar la vista previa'),
+          );
         }
         const blob = await res.blob();
         objectUrl = URL.createObjectURL(blob);
@@ -202,7 +223,11 @@ export default function PreviewStep({
       } catch (err) {
         if (!cancelled) {
           setPreviewUrl(null);
-          setPreviewError(err instanceof Error ? err.message : 'Could not generate preview');
+          setPreviewError(
+            err instanceof Error
+              ? err.message
+              : t('Could not generate preview', 'No pudimos generar la vista previa'),
+          );
         }
       } finally {
         if (!cancelled) setPreviewLoading(false);
@@ -248,7 +273,10 @@ export default function PreviewStep({
 
   async function handleSend() {
     if (validRecipients.length === 0) {
-      setSendState({ phase: 'error', message: 'No valid recipients to send to.' });
+      setSendState({
+        phase: 'error',
+        message: t('No valid recipients to send to.', 'No hay destinatarios válidos para enviar.'),
+      });
       return;
     }
     const startedAt = Date.now();
@@ -272,13 +300,17 @@ export default function PreviewStep({
           emailConfig,
           extraFields: toApiExtraFields(extraFields),
           templateKind,
+          locale,
         }),
       });
 
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
         setSendState({ phase: 'idle' });
-        setWaitlistMessage(data.error ?? "You've reached this month's free limit.");
+        setWaitlistMessage(
+          data.error ??
+            t("You've reached this month's free limit.", 'Llegaste al límite gratuito de este mes.'),
+        );
         setWaitlistTier(data.tier === 'user' ? 'user' : 'guest');
         setWaitlistOpen(true);
         return;
@@ -288,7 +320,7 @@ export default function PreviewStep({
         const data = await res.json().catch(() => ({}));
         setSendState({
           phase: 'error',
-          message: data.error ?? 'Sending failed.',
+          message: data.error ?? t('Sending failed.', 'No se pudo completar el envío.'),
         });
         return;
       }
@@ -350,7 +382,7 @@ export default function PreviewStep({
     } catch (err) {
       setSendState({
         phase: 'error',
-        message: err instanceof Error ? err.message : 'Unknown error.',
+        message: err instanceof Error ? err.message : t('Unknown error.', 'Error desconocido.'),
       });
     }
   }
@@ -359,11 +391,17 @@ export default function PreviewStep({
     const name = testName.trim();
     const email = testEmail.trim();
     if (!name) {
-      setTestStatus({ phase: 'error', message: 'Enter a name for the test.' });
+      setTestStatus({
+        phase: 'error',
+        message: t('Enter a name for the test.', 'Escribe un nombre para la prueba.'),
+      });
       return;
     }
     if (!isValidEmail(email)) {
-      setTestStatus({ phase: 'error', message: 'Enter a valid email address.' });
+      setTestStatus({
+        phase: 'error',
+        message: t('Enter a valid email address.', 'Escribe un correo válido.'),
+      });
       return;
     }
     setTestStatus({ phase: 'sending' });
@@ -379,13 +417,15 @@ export default function PreviewStep({
           textConfig,
           emailConfig,
           extraFields: toApiExtraFields(extraFields),
+          locale,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setTestStatus({
           phase: 'error',
-          message: data.error ?? 'Could not send the test email.',
+          message:
+            data.error ?? t('Could not send the test email.', 'No pudimos enviar el correo de prueba.'),
         });
         return;
       }
@@ -393,7 +433,7 @@ export default function PreviewStep({
     } catch (err) {
       setTestStatus({
         phase: 'error',
-        message: err instanceof Error ? err.message : 'Unknown error.',
+        message: err instanceof Error ? err.message : t('Unknown error.', 'Error desconocido.'),
       });
     }
   }
@@ -414,10 +454,14 @@ export default function PreviewStep({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Review and send</h2>
+        <h2 className="text-2xl font-bold text-gray-900">
+          {t('Review and send', 'Revisa y envía')}
+        </h2>
         <p className="mt-1 text-gray-600">
-          This is how the certificate will look. When you're ready, send it to all your
-          recipients.
+          {t(
+            "This is how the certificate will look. When you're ready, send it to all your recipients.",
+            'Así se verá el certificado. Cuando estés listo, envíalo a todos tus destinatarios.',
+          )}
         </p>
       </div>
 
@@ -425,22 +469,22 @@ export default function PreviewStep({
         {/* ---------- Left: preview ---------- */}
         <div>
           <div className="mb-2 text-sm font-medium text-gray-700">
-            Preview — {previewName}
+            {t('Preview —', 'Vista previa:')} {previewName}
           </div>
           <div className="aspect-[4/3] overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
             {previewLoading ? (
               <div className="flex h-full items-center justify-center text-gray-400">
-                Generating preview…
+                {t('Generating preview…', 'Generando vista previa…')}
               </div>
             ) : previewUrl ? (
               <iframe
                 src={previewUrl}
-                title="Certificate preview"
+                title={t('Certificate preview', 'Vista previa del certificado')}
                 className="h-full w-full"
               />
             ) : (
               <div className="flex h-full items-center justify-center p-6 text-center text-sm text-red-600">
-                {previewError ?? 'Could not generate preview'}
+                {previewError ?? t('Could not generate preview', 'No pudimos generar la vista previa')}
               </div>
             )}
           </div>
@@ -458,28 +502,36 @@ export default function PreviewStep({
             />
           ) : (
             <>
-              <h3 className="text-lg font-semibold text-gray-900">Send summary</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {t('Send summary', 'Resumen del envío')}
+              </h3>
               <dl className="mt-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Valid recipients</dt>
+                  <dt className="text-gray-600">{t('Valid recipients', 'Destinatarios válidos')}</dt>
                   <dd className="font-semibold">{validRecipients.length}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Recipients with errors</dt>
+                  <dt className="text-gray-600">
+                    {t('Recipients with errors', 'Destinatarios con errores')}
+                  </dt>
                   <dd className="font-semibold text-red-600">
                     {recipients.length - validRecipients.length}
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Subject</dt>
+                  <dt className="text-gray-600">{t('Subject', 'Asunto')}</dt>
                   <dd className="max-w-[60%] truncate font-mono text-xs">
                     {emailConfig.subject || '—'}
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-600">Verification pages</dt>
+                  <dt className="text-gray-600">
+                    {t('Verification pages', 'Páginas de verificación')}
+                  </dt>
                   <dd className="font-semibold">
-                    {emailConfig.verification === false ? 'Off' : 'On'}
+                    {emailConfig.verification === false
+                      ? t('Off', 'Desactivadas')
+                      : t('On', 'Activadas')}
                   </dd>
                 </div>
               </dl>
@@ -490,32 +542,39 @@ export default function PreviewStep({
                   <span className="text-xl leading-none">🧪</span>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">
-                      Send a test first
+                      {t('Send a test first', 'Primero envía una prueba')}
                     </p>
                     <p className="text-xs text-gray-500">
-                      See exactly how your recipients will get it.
+                      {t(
+                        'See exactly how your recipients will get it.',
+                        'Mira exactamente cómo lo recibirán tus destinatarios.',
+                      )}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 space-y-2">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600">Name</label>
+                    <label className="block text-xs font-medium text-gray-600">
+                      {t('Name', 'Nombre')}
+                    </label>
                     <input
                       type="text"
                       value={testName}
                       onChange={(e) => setTestName(e.target.value)}
-                      placeholder="John Doe"
+                      placeholder={t('John Doe', 'Juan Pérez')}
                       className="mt-1 block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600">Email</label>
+                    <label className="block text-xs font-medium text-gray-600">
+                      {t('Email', 'Correo')}
+                    </label>
                     <input
                       type="email"
                       value={testEmail}
                       onChange={(e) => setTestEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder={t('you@example.com', 'tu@ejemplo.com')}
                       className="mt-1 block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
                     />
                   </div>
@@ -523,7 +582,10 @@ export default function PreviewStep({
 
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-[11px] leading-snug text-gray-500">
-                    This sends a real email only to you, not to your recipients list.
+                    {t(
+                      'This sends a real email only to you, not to your recipients list.',
+                      'Esto envía un correo real solo a ti, no a tu lista de destinatarios.',
+                    )}
                   </p>
                   <button
                     type="button"
@@ -531,13 +593,15 @@ export default function PreviewStep({
                     disabled={testStatus.phase === 'sending' || !testName.trim() || !testEmail.trim()}
                     className="shrink-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {testStatus.phase === 'sending' ? 'Sending…' : 'Send test email →'}
+                    {testStatus.phase === 'sending'
+                      ? t('Sending…', 'Enviando…')
+                      : t('Send test email →', 'Enviar prueba →')}
                   </button>
                 </div>
 
                 {testStatus.phase === 'success' && (
                   <p className="mt-2 text-xs font-medium text-green-700">
-                    ✓ Test sent! Check your inbox.
+                    {t('✓ Test sent! Check your inbox.', '✓ ¡Prueba enviada! Revisa tu bandeja de entrada.')}
                   </p>
                 )}
                 {testStatus.phase === 'error' && (
@@ -555,7 +619,10 @@ export default function PreviewStep({
                   disabled={validRecipients.length === 0}
                   className="mt-4 w-full rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Send to {validRecipients.length} recipients
+                  {t(
+                    `Send to ${validRecipients.length} recipients`,
+                    `Enviar a ${validRecipients.length} destinatarios`,
+                  )}
                 </button>
               )}
 
@@ -587,7 +654,7 @@ export default function PreviewStep({
           sent={sendState.sent}
           failed={sendState.failed}
           results={sendState.results}
-          onDownloadFailed={() => downloadFailedCsv(sendState.results)}
+          onDownloadFailed={() => downloadFailedCsv(sendState.results, locale)}
         />
       )}
 
@@ -619,6 +686,8 @@ function SendingPanel({
   progressPct: number;
   etaSeconds: number | null;
 }) {
+  const locale = useLocale();
+  const t = useTx();
   return (
     <div className="mt-4 rounded-lg border border-brand-200 bg-white p-4">
       <div className="flex items-center gap-3">
@@ -639,10 +708,10 @@ function SendingPanel({
         </svg>
         <div className="flex-1">
           <p className="text-sm font-semibold text-gray-900">
-            Sending {completed} of {total}…
+            {t({ en: `Sending ${completed} of ${total}…`, es: `Enviando ${completed} de ${total}…` })}
           </p>
           {total > 5 && etaSeconds !== null && (
-            <p className="text-xs text-gray-500">{formatEta(etaSeconds)}</p>
+            <p className="text-xs text-gray-500">{formatEta(etaSeconds, locale)}</p>
           )}
         </div>
         <span className="shrink-0 text-sm font-semibold text-brand-700">
@@ -672,6 +741,8 @@ function SuccessPanel({
   onResetAll: () => void;
   onResetAudience: () => void;
 }) {
+  const locale = useLocale();
+  const t = useTx();
   const verifyHost =
     typeof window !== 'undefined'
       ? window.location.host
@@ -731,10 +802,16 @@ function SuccessPanel({
       </div>
 
       <p className="mt-4 text-xl font-bold text-gray-900">
-        {sent} {sent === 1 ? 'certificate' : 'certificates'} sent successfully!
+        {t({
+          en: `${sent} ${sent === 1 ? 'certificate' : 'certificates'} sent successfully!`,
+          es: `¡${sent} ${sent === 1 ? 'certificado enviado' : 'certificados enviados'} con éxito!`,
+        })}
       </p>
       <p className="mt-1 text-sm text-gray-600">
-        Your recipients should be receiving their emails in the next few minutes.
+        {t({
+          en: 'Your recipients should be receiving their emails in the next few minutes.',
+          es: 'Tus destinatarios recibirán sus correos en los próximos minutos.',
+        })}
       </p>
 
       {/* Every certificate with a verify ID (guests included) is listed so the
@@ -744,9 +821,14 @@ function SuccessPanel({
         <div className="mt-6 rounded-xl border border-gray-200 bg-white p-4 text-left">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-gray-900">Verification links</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {t({ en: 'Verification links', es: 'Enlaces de verificación' })}
+              </p>
               <p className="mt-0.5 text-xs text-gray-500">
-                Each recipient got their link by email, with a button to add it to LinkedIn.
+                {t({
+                  en: 'Each recipient got their link by email, with a button to add it to LinkedIn.',
+                  es: 'Cada destinatario recibió su enlace por correo, con un botón para agregarlo a LinkedIn.',
+                })}
               </p>
             </div>
             <button
@@ -759,7 +841,7 @@ function SuccessPanel({
               }}
               className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
-              Copy all
+              {t({ en: 'Copy all', es: 'Copiar todos' })}
             </button>
           </div>
           <ul className="mt-3 max-h-48 space-y-1 overflow-auto text-xs">
@@ -777,7 +859,7 @@ function SuccessPanel({
                   rel="noreferrer"
                   className="shrink-0 text-brand-600 underline"
                 >
-                  open
+                  {t({ en: 'open', es: 'abrir' })}
                 </a>
               </li>
             ))}
@@ -787,16 +869,20 @@ function SuccessPanel({
 
       {!loggedIn && (
         <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-4 text-left text-sm">
-          <p className="font-semibold text-gray-900">Sending certificates often?</p>
+          <p className="font-semibold text-gray-900">
+            {t({ en: 'Sending certificates often?', es: '¿Envías certificados seguido?' })}
+          </p>
           <p className="mt-1 text-gray-700">
-            A free account raises your limit to 300 a month and keeps a history of every
-            send. Just your email, no password.
+            {t({
+              en: 'A free account raises your limit to 300 a month and keeps a history of every send. Just your email, no password.',
+              es: 'Con una cuenta gratis tu límite sube a 300 por mes y guardas el historial de cada envío. Solo tu correo, sin contraseña.',
+            })}
           </p>
           <a
-            href="/login"
+            href={localizePath('/login', locale)}
             className="mt-3 inline-block rounded-lg bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-700"
           >
-            Create a free account →
+            {t({ en: 'Create a free account →', es: 'Crear una cuenta gratis →' })}
           </a>
         </div>
       )}
@@ -807,14 +893,17 @@ function SuccessPanel({
           onClick={onResetAudience}
           className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
         >
-          Send same certificate to new recipients
+          {t({
+            en: 'Send same certificate to new recipients',
+            es: 'Enviar el mismo certificado a otros destinatarios',
+          })}
         </button>
         <button
           type="button"
           onClick={onResetAll}
           className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
         >
-          Send more certificates
+          {t({ en: 'Send more certificates', es: 'Enviar más certificados' })}
         </button>
       </div>
     </div>
@@ -832,16 +921,23 @@ function ResultsReport({
   results: ResultEntry[];
   onDownloadFailed: () => void;
 }) {
+  const t = useTx();
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
         <div className="text-2xl">⚠️</div>
         <div className="flex-1">
           <p className="font-semibold text-amber-900">
-            {sent} sent successfully · {failed} failed
+            {t({
+              en: `${sent} sent successfully · ${failed} failed`,
+              es: `${sent} enviados con éxito · ${failed} con error`,
+            })}
           </p>
           <p className="text-sm text-amber-800">
-            Download the failed list, fix the issues, and re-upload only those rows.
+            {t({
+              en: 'Download the failed list, fix the issues, and re-upload only those rows.',
+              es: 'Descarga la lista de fallidos, corrige los problemas y vuelve a subir solo esas filas.',
+            })}
           </p>
         </div>
         <button
@@ -849,7 +945,7 @@ function ResultsReport({
           onClick={onDownloadFailed}
           className="rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-50"
         >
-          ⬇ Download failed list
+          ⬇ {t({ en: 'Download failed list', es: 'Descargar lista de fallidos' })}
         </button>
       </div>
 
@@ -857,9 +953,9 @@ function ResultsReport({
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-gray-50 text-left text-gray-600">
             <tr>
-              <th className="px-4 py-2 font-medium">Name</th>
-              <th className="px-4 py-2 font-medium">Email</th>
-              <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">{t({ en: 'Name', es: 'Nombre' })}</th>
+              <th className="px-4 py-2 font-medium">{t({ en: 'Email', es: 'Correo' })}</th>
+              <th className="px-4 py-2 font-medium">{t({ en: 'Status', es: 'Estado' })}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -869,7 +965,7 @@ function ResultsReport({
                 <td className="px-4 py-2 font-mono text-xs">{r.email}</td>
                 <td className="px-4 py-2">
                   {r.status === 'ok' ? (
-                    <span className="text-green-700">✓ Sent</span>
+                    <span className="text-green-700">{t({ en: '✓ Sent', es: '✓ Enviado' })}</span>
                   ) : (
                     <span className="text-red-700" title={r.error}>
                       ✗ {r.error ?? 'Error'}

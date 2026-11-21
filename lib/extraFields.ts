@@ -1,3 +1,5 @@
+import { LOCALE_TAG, type Locale } from '@/lib/i18n';
+
 // Extra text overlays drawn on the certificate, alongside the recipient name.
 // Each field is a free-floating piece of vector text (drawn by pdf-lib, not
 // baked into the html2canvas capture) so it stays crisp at any zoom.
@@ -29,12 +31,13 @@ function makeId(): string {
  * Two fields present by default: signature (bottom-left) and date (bottom-right).
  * Matches the signature / date lines drawn by the built-in templates.
  */
-export function defaultExtraFields(): ExtraField[] {
+export function defaultExtraFields(locale: Locale = 'en'): ExtraField[] {
+  const es = locale === 'es';
   return [
     {
       id: makeId(),
-      label: 'Signature',
-      value: 'Signature',
+      label: es ? 'Firma' : 'Signature',
+      value: es ? 'Firma' : 'Signature',
       x: 25,
       y: 85,
       fontSize: 22,
@@ -43,9 +46,9 @@ export function defaultExtraFields(): ExtraField[] {
     },
     {
       id: makeId(),
-      label: 'Date',
-      // Locale is explicitly en-US to keep the default stable across machines.
-      value: new Date().toLocaleDateString('en-US', {
+      label: es ? 'Fecha' : 'Date',
+      // Locale is explicit to keep the default stable across machines.
+      value: new Date().toLocaleDateString(LOCALE_TAG[locale], {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -62,10 +65,10 @@ export function defaultExtraFields(): ExtraField[] {
 /**
  * Blank field seeded near the center — used by the "+ Add field" button.
  */
-export function emptyExtraField(): ExtraField {
+export function emptyExtraField(locale: Locale = 'en'): ExtraField {
   return {
     id: makeId(),
-    label: 'Field',
+    label: locale === 'es' ? 'Campo' : 'Field',
     value: '',
     x: 50,
     y: 50,

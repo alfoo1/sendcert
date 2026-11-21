@@ -1,8 +1,11 @@
+import type { Locale } from '@/lib/i18n';
+
 // LinkedIn deep links for a verified certificate. Kept in one place so a
 // change on LinkedIn's side only needs one fix (every button goes through
 // /verify/[id]/linkedin, which builds these URLs on the server).
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sendcert.org').replace(/\/$/, '');
+
 
 export type CredentialForLinkedIn = {
   verifyId: string;
@@ -10,6 +13,7 @@ export type CredentialForLinkedIn = {
   issuerName: string | null;
   issuedDate: string; // YYYY-MM-DD
   expiryDate: string | null;
+  locale?: Locale;
 };
 
 export function publicVerifyUrl(verifyId: string): string {
@@ -38,7 +42,10 @@ export function linkedInAddToProfileUrl(c: CredentialForLinkedIn): string {
 
 /** Opens the LinkedIn post composer with a short default text and the link. */
 export function linkedInShareUrl(c: CredentialForLinkedIn): string {
-  const from = c.issuerName ? ` from ${c.issuerName}` : '';
-  const text = `I just earned my "${c.certificateName}" certificate${from}. You can verify it here: ${publicVerifyUrl(c.verifyId)}`;
+  const url = publicVerifyUrl(c.verifyId);
+  const text =
+    c.locale === 'es'
+      ? `Acabo de obtener mi certificado "${c.certificateName}"${c.issuerName ? ` de ${c.issuerName}` : ''}. Puedes verificarlo aquí: ${url}`
+      : `I just earned my "${c.certificateName}" certificate${c.issuerName ? ` from ${c.issuerName}` : ''}. You can verify it here: ${url}`;
   return `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
 }

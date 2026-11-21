@@ -1,3 +1,5 @@
+import type { Locale } from '@/lib/i18n';
+
 // Catalog of built-in templates. Each one is drawn live by
 // components/CertificateRenderer.tsx; `path` is only a server-side fallback
 // image used when a request arrives without a captured template.
@@ -85,3 +87,44 @@ export const PRESET_TEMPLATES: PresetTemplate[] = [
     defaultFontFamily: 'helvetica',
   },
 ];
+
+// Spanish names and descriptions for the picker and the landing gallery.
+// English stays in PRESET_TEMPLATES so existing callers are unchanged.
+const PRESET_TEXT_ES: Record<string, { name: string; description: string }> = {
+  elegant: {
+    name: 'Elegante',
+    description: 'Marco azul marino con detalles dorados. Para programas formales y premios.',
+  },
+  minimal: {
+    name: 'Minimalista',
+    description: 'Diseño limpio con mucho espacio en blanco. Sirve para todo.',
+  },
+  bold: {
+    name: 'Audaz',
+    description: 'Formas de color intenso para bootcamps, cursos de tecnología y webinars.',
+  },
+  academic: {
+    name: 'Académico',
+    description: 'Tipografía clásica con serifa y un sello. Para escuelas y universidades.',
+  },
+  corporate: {
+    name: 'Corporativo',
+    description: 'Estructurado y sobrio para capacitaciones de personal y cumplimiento.',
+  },
+  friendly: {
+    name: 'Amigable',
+    description: 'Colorido y alegre para talleres, campamentos y escuelas.',
+  },
+};
+
+export function presetName(id: string, locale: Locale): string {
+  const preset = PRESET_TEMPLATES.find((p) => p.id === id);
+  if (locale === 'es' && PRESET_TEXT_ES[id]) return PRESET_TEXT_ES[id].name;
+  return preset?.name ?? id;
+}
+
+export function presetDescription(id: string, locale: Locale): string {
+  const preset = PRESET_TEMPLATES.find((p) => p.id === id);
+  if (locale === 'es' && PRESET_TEXT_ES[id]) return PRESET_TEXT_ES[id].description;
+  return preset?.description ?? '';
+}

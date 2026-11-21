@@ -13,6 +13,7 @@ import CertificateRenderer, {
   CERT_WIDTH,
   CERT_HEIGHT,
 } from './CertificateRenderer';
+import { useLocale, useTx } from '@/components/i18n/LocaleProvider';
 
 export type TextConfig = {
   x: number; // percentage 0-100 (center of text)
@@ -42,7 +43,6 @@ type Props = {
   onExtraFieldsChange: (fields: ExtraField[]) => void;
 };
 
-const SAMPLE_NAME = 'Maria Johnson';
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 // Drag state describes which handle (if any) is being dragged. The offset
@@ -66,6 +66,9 @@ export default function ConfigStep({
   extraFields,
   onExtraFieldsChange,
 }: Props) {
+  const locale = useLocale();
+  const t = useTx();
+  const sampleName = locale === 'es' ? 'María González' : 'Maria Johnson';
   const isBuiltInTemplate = Boolean(templateId && !templateDataUrl);
   const customImageSrc = templateDataUrl;
 
@@ -196,7 +199,7 @@ export default function ConfigStep({
     );
   }
   function addField() {
-    onExtraFieldsChange([...extraFields, emptyExtraField()]);
+    onExtraFieldsChange([...extraFields, emptyExtraField(locale)]);
   }
   function removeField(id: string) {
     onExtraFieldsChange(extraFields.filter((f) => f.id !== id));
@@ -230,7 +233,7 @@ export default function ConfigStep({
       const file = files[0];
       if (!file || !content) return;
       if (file.size > MAX_LOGO_BYTES) {
-        alert('Logo is too large. Max 2MB.');
+        alert(t({ en: 'Logo is too large. Max 2MB.', es: 'El logo es muy pesado. Máximo 2 MB.' }));
         return;
       }
       const reader = new FileReader();
@@ -241,7 +244,7 @@ export default function ConfigStep({
       };
       reader.readAsDataURL(file);
     },
-    [content, onContentChange],
+    [content, onContentChange, t],
   );
   const logoDrop = useDropzone({
     onDrop: onLogoDrop,
@@ -261,11 +264,15 @@ export default function ConfigStep({
       {/* ---------- LEFT: live preview ---------- */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900">
-          {isBuiltInTemplate ? 'Customize your certificate' : "Place the recipient's name"}
+          {isBuiltInTemplate
+            ? t({ en: 'Customize your certificate', es: 'Personaliza tu certificado' })
+            : t({ en: "Place the recipient's name", es: 'Ubica el nombre del destinatario' })}
         </h2>
         <p className="mt-1 text-gray-600">
-          Drag the name or logo on the certificate to position them, or use the X/Y
-          inputs on the right.
+          {t({
+            en: 'Drag the name or logo on the certificate to position them, or use the X/Y inputs on the right.',
+            es: 'Arrastra el nombre o el logo sobre el certificado para ubicarlos, o usa los campos X/Y de la derecha.',
+          })}
         </p>
 
         <div
@@ -307,7 +314,7 @@ export default function ConfigStep({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={customImageSrc}
-                  alt="template"
+                  alt={t({ en: 'template', es: 'plantilla' })}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -344,7 +351,7 @@ export default function ConfigStep({
                   fontWeight: 700,
                 }}
               >
-                {SAMPLE_NAME}
+                {sampleName}
               </div>
               <div
                 className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-600 ring-2 ring-white"
@@ -391,7 +398,7 @@ export default function ConfigStep({
 
           {!isBuiltInTemplate && !customImageSrc && (
             <div className="flex h-full items-center justify-center text-gray-400">
-              No template selected
+              {t({ en: 'No template selected', es: 'No elegiste ninguna plantilla' })}
             </div>
           )}
         </div>
@@ -428,12 +435,14 @@ export default function ConfigStep({
       <div className="space-y-4">
         {/* Section 1: recipient name */}
         <CollapsibleSection
-          title="Recipient name"
+          title={t({ en: 'Recipient name', es: 'Nombre del destinatario' })}
           open={nameSectionOpen}
           onToggle={() => setNameSectionOpen((v) => !v)}
         >
           <div>
-            <label className="block text-sm font-medium text-gray-700">Font</label>
+            <label className="block text-sm font-medium text-gray-700">
+              {t({ en: 'Font', es: 'Fuente' })}
+            </label>
             <select
               value={textConfig.fontFamily}
               onChange={(e) =>
@@ -441,15 +450,21 @@ export default function ConfigStep({
               }
               className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
             >
-              <option value="helvetica">Helvetica (sans-serif)</option>
-              <option value="times">Times Roman (serif)</option>
-              <option value="courier">Courier (monospace)</option>
+              <option value="helvetica">
+                {t({ en: 'Helvetica (sans-serif)', es: 'Helvetica (sin serifa)' })}
+              </option>
+              <option value="times">
+                {t({ en: 'Times Roman (serif)', es: 'Times Roman (con serifa)' })}
+              </option>
+              <option value="courier">
+                {t({ en: 'Courier (monospace)', es: 'Courier (monoespaciada)' })}
+              </option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Size: {textConfig.fontSize}pt
+              {t({ en: 'Size', es: 'Tamaño' })}: {textConfig.fontSize}pt
             </label>
             <input
               type="range"
@@ -511,11 +526,11 @@ export default function ConfigStep({
         {/* Section 2: certificate content */}
         {isBuiltInTemplate && content && (
           <CollapsibleSection
-            title="Certificate content"
+            title={t({ en: 'Certificate content', es: 'Contenido del certificado' })}
             open={contentSectionOpen}
             onToggle={() => setContentSectionOpen((v) => !v)}
           >
-            <Field label="Institution name">
+            <Field label={t({ en: 'Institution name', es: 'Nombre de la institución' })}>
               <input
                 type="text"
                 value={content.institutionName}
@@ -523,16 +538,16 @@ export default function ConfigStep({
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               />
             </Field>
-            <Field label="Subtitle / kicker">
+            <Field label={t({ en: 'Subtitle / kicker', es: 'Subtítulo' })}>
               <input
                 type="text"
                 value={content.subtitleLabel}
                 onChange={(e) => updateContent('subtitleLabel', e.target.value)}
-                placeholder="CERTIFICATE"
+                placeholder={t({ en: 'CERTIFICATE', es: 'CERTIFICADO' })}
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               />
             </Field>
-            <Field label="Certificate title">
+            <Field label={t({ en: 'Certificate title', es: 'Título del certificado' })}>
               <input
                 type="text"
                 value={content.certificateTitle}
@@ -540,7 +555,7 @@ export default function ConfigStep({
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               />
             </Field>
-            <Field label="Body text">
+            <Field label={t({ en: 'Body text', es: 'Texto principal' })}>
               <textarea
                 rows={2}
                 value={content.bodyText}
@@ -548,7 +563,7 @@ export default function ConfigStep({
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               />
             </Field>
-            <Field label="Footer text">
+            <Field label={t({ en: 'Footer text', es: 'Texto inferior' })}>
               <textarea
                 rows={2}
                 value={content.footerText}
@@ -556,7 +571,7 @@ export default function ConfigStep({
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               />
             </Field>
-            <Field label="Signer name">
+            <Field label={t({ en: 'Signer name', es: 'Nombre de quien firma' })}>
               <input
                 type="text"
                 value={content.signerName}
@@ -565,18 +580,20 @@ export default function ConfigStep({
               />
             </Field>
 
-            <Field label="Second signature caption">
+            <Field label={t({ en: 'Second signature caption', es: 'Texto de la segunda firma' })}>
               <input
                 type="text"
                 value={content.dateText}
                 onChange={(e) => updateContent('dateText', e.target.value)}
-                placeholder="Date"
+                placeholder={t({ en: 'Date', es: 'Fecha' })}
                 className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               />
-              <p className="mt-1 text-xs text-gray-500">Leave empty to hide it.</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {t({ en: 'Leave empty to hide it.', es: 'Déjalo vacío para ocultarlo.' })}
+              </p>
             </Field>
 
-            <Field label="Accent color">
+            <Field label={t({ en: 'Accent color', es: 'Color de acento' })}>
               <div className="mt-1 flex items-center gap-3">
                 <input
                   type="color"
@@ -594,7 +611,7 @@ export default function ConfigStep({
             </Field>
 
             {/* Logo upload + free positioning */}
-            <Field label="Logo (optional)">
+            <Field label={t({ en: 'Logo (optional)', es: 'Logo (opcional)' })}>
               <div
                 {...logoDrop.getRootProps()}
                 className={`mt-1 cursor-pointer rounded-lg border-2 border-dashed p-3 text-center text-xs transition ${
@@ -609,14 +626,22 @@ export default function ConfigStep({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={content.logoDataUrl}
-                      alt="logo preview"
+                      alt={t({ en: 'logo preview', es: 'vista previa del logo' })}
                       className="h-8 w-auto object-contain"
                     />
-                    <span className="text-gray-600">Click to replace · PNG/JPG/SVG, max 2MB</span>
+                    <span className="text-gray-600">
+                      {t({
+                        en: 'Click to replace · PNG/JPG/SVG, max 2MB',
+                        es: 'Haz clic para reemplazarlo · PNG/JPG/SVG, máx. 2 MB',
+                      })}
+                    </span>
                   </div>
                 ) : (
                   <span className="text-gray-600">
-                    Drop a logo or click · PNG/JPG/SVG, max 2MB
+                    {t({
+                      en: 'Drop a logo or click · PNG/JPG/SVG, max 2MB',
+                      es: 'Suelta un logo o haz clic · PNG/JPG/SVG, máx. 2 MB',
+                    })}
                   </span>
                 )}
               </div>
@@ -656,7 +681,7 @@ export default function ConfigStep({
 
                   <div className="mt-3">
                     <label className="block text-xs font-medium text-gray-700">
-                      Logo size: {content.logoSize.toFixed(0)}%
+                      {t({ en: 'Logo size', es: 'Tamaño del logo' })}: {content.logoSize.toFixed(0)}%
                     </label>
                     <input
                       type="range"
@@ -670,13 +695,19 @@ export default function ConfigStep({
                   </div>
 
                   <div className="mt-2 flex justify-between text-xs">
-                    <span className="text-gray-500">💡 Drag the logo on the preview to reposition</span>
+                    <span className="text-gray-500">
+                      💡{' '}
+                      {t({
+                        en: 'Drag the logo on the preview to reposition',
+                        es: 'Arrastra el logo en la vista previa para moverlo',
+                      })}
+                    </span>
                     <button
                       type="button"
                       onClick={() => updateContent('logoDataUrl', null)}
                       className="text-red-600 underline"
                     >
-                      Remove
+                      {t({ en: 'Remove', es: 'Quitar' })}
                     </button>
                   </div>
                 </>
@@ -687,20 +718,26 @@ export default function ConfigStep({
 
         {!isBuiltInTemplate && (
           <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
-            💡 Tip: editable text fields are available when you pick one of the
-            built-in templates in step 1.
+            💡{' '}
+            {t({
+              en: 'Tip: editable text fields are available when you pick one of the built-in templates in step 1.',
+              es: 'Consejo: los textos editables están disponibles si eliges una de las plantillas incluidas en el paso 1.',
+            })}
           </div>
         )}
 
         {/* Section 3: repeatable extra text overlays (signature, date, …). */}
         <CollapsibleSection
-          title="Additional fields"
+          title={t({ en: 'Additional fields', es: 'Campos adicionales' })}
           open={true}
           onToggle={() => {}}
         >
           {extraFields.length === 0 && (
             <p className="text-xs text-gray-500">
-              No fields yet. Use the button below to add one.
+              {t({
+                en: 'No fields yet. Use the button below to add one.',
+                es: 'Todavía no hay campos. Usa el botón de abajo para agregar uno.',
+              })}
             </p>
           )}
           {extraFields.map((field) => (
@@ -713,15 +750,15 @@ export default function ConfigStep({
                   type="text"
                   value={field.label}
                   onChange={(e) => updateField(field.id, 'label', e.target.value)}
-                  placeholder="Label"
+                  placeholder={t({ en: 'Label', es: 'Etiqueta' })}
                   className="flex-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium"
                 />
                 <button
                   type="button"
                   onClick={() => removeField(field.id)}
-                  aria-label="Remove field"
+                  aria-label={t({ en: 'Remove field', es: 'Quitar campo' })}
                   className="rounded-md p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
-                  title="Remove this field"
+                  title={t({ en: 'Remove this field', es: 'Quitar este campo' })}
                 >
                   🗑
                 </button>
@@ -730,7 +767,10 @@ export default function ConfigStep({
                 type="text"
                 value={field.value}
                 onChange={(e) => updateField(field.id, 'value', e.target.value)}
-                placeholder="Value shown on the certificate"
+                placeholder={t({
+                  en: 'Value shown on the certificate',
+                  es: 'Texto que se ve en el certificado',
+                })}
                 className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm"
               />
               <div className="grid grid-cols-3 gap-2">
@@ -759,7 +799,9 @@ export default function ConfigStep({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-medium text-gray-600">Size</label>
+                  <label className="block text-[10px] font-medium text-gray-600">
+                    {t({ en: 'Size', es: 'Tamaño' })}
+                  </label>
                   <input
                     type="number"
                     min={8}
@@ -799,7 +841,7 @@ export default function ConfigStep({
             onClick={addField}
             className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition hover:border-brand-400 hover:bg-brand-50/50 hover:text-brand-700"
           >
-            + Add field
+            + {t({ en: 'Add field', es: 'Agregar campo' })}
           </button>
         </CollapsibleSection>
       </div>

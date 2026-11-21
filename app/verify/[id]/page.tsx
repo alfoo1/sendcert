@@ -10,7 +10,63 @@ import {
   type FontFamily,
 } from '@/lib/certificates';
 import { sans } from '@/components/landing/fonts';
+import { LocaleProvider } from '@/components/i18n/LocaleProvider';
+import { localizePath, tx, type Locale, type Tx } from '@/lib/i18n';
 import ShareActions from './ShareActions';
+
+// Page strings. The page renders in the language the certificate was sent in.
+const COPY = {
+  notFoundTitle: { en: 'No certificate with this ID', es: 'No hay un certificado con este ID' },
+  notFoundBody1: { en: 'We couldn’t find a certificate with ID', es: 'No encontramos un certificado con el ID' },
+  notFoundBody2: {
+    en: 'Check that the link or ID was copied exactly. If it was, this certificate wasn’t issued through SendCert.',
+    es: 'Revisa que el enlace o el ID estén copiados exactamente. Si lo están, este certificado no fue emitido con SendCert.',
+  },
+  verified: { en: 'Verified certificate', es: 'Certificado verificado' },
+  expiredTitle: { en: 'Genuine certificate · expired', es: 'Certificado auténtico · vencido' },
+  issued: { en: 'Issued', es: 'Emitido' },
+  by: { en: 'by', es: 'por' },
+  on: { en: 'on', es: 'el' },
+  through: { en: 'through SendCert.', es: 'con SendCert.' },
+  previewUnavailable: { en: 'Certificate preview not available', es: 'Vista previa no disponible' },
+  awardedTo: { en: 'Awarded to', es: 'Otorgado a' },
+  issuedBy: { en: 'Issued by', es: 'Emitido por' },
+  issueDate: { en: 'Issue date', es: 'Fecha de emisión' },
+  expiredOn: { en: 'Expired on', es: 'Venció el' },
+  validUntil: { en: 'Valid until', es: 'Válido hasta' },
+  certificateId: { en: 'Certificate ID', es: 'ID del certificado' },
+  status: { en: 'Status', es: 'Estado' },
+  valid: { en: 'Valid', es: 'Válido' },
+  expired: { en: 'Expired', es: 'Vencido' },
+  yours: { en: 'Is this your certificate?', es: '¿Es tu certificado?' },
+  yoursBody: {
+    en: 'Add it to your profile or share it. This page is the proof that it’s real.',
+    es: 'Agrégalo a tu perfil o compártelo. Esta página es la prueba de que es auténtico.',
+  },
+  howTitle: { en: 'How this verification works', es: 'Cómo funciona esta verificación' },
+  p1Title: { en: 'A unique ID', es: 'Un ID único' },
+  p1: {
+    en: 'Every certificate sent with SendCert gets its own ID and its own page on sendcert.org.',
+    es: 'Cada certificado enviado con SendCert tiene su propio ID y su propia página en sendcert.org.',
+  },
+  p2Title: { en: 'Recorded at issue', es: 'Registrado al emitirse' },
+  p2: {
+    en: 'This record was created when the certificate was sent. The recipient can’t edit it.',
+    es: 'Este registro se creó cuando se envió el certificado. Quien lo recibe no puede editarlo.',
+  },
+  p3Title: { en: 'Easy to check', es: 'Fácil de comprobar' },
+  p3: {
+    en: 'If a PDF or printout doesn’t match the name, certificate and date on this page, it isn’t genuine.',
+    es: 'Si un PDF o una copia impresa no coincide con el nombre, el certificado y la fecha de esta página, no es auténtico.',
+  },
+  header: { en: 'Certificate verification', es: 'Verificación de certificados' },
+  mission: {
+    en: 'SendCert makes verifiable certificates free for every teacher, trainer and nonprofit.',
+    es: 'SendCert hace que los certificados verificables sean gratis para cada docente, capacitador y ONG.',
+  },
+  issueOwn: { en: 'Issue your own certificates, free →', es: 'Emite tus propios certificados gratis →' },
+  descIssued: { en: 'Verified certificate issued', es: 'Certificado verificado emitido' },
+} satisfies Record<string, Tx>;
 
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');
 
@@ -26,7 +82,8 @@ const SVG_FONTS: Record<FontFamily, string> = {
   courier: '"Courier New", monospace',
 };
 
-const HOME_LINK = '/?utm_source=verify_page&utm_medium=referral&utm_campaign=powered_by';
+const homeLink = (locale: Locale) =>
+  `${localizePath('/', locale)}?utm_source=verify_page&utm_medium=referral&utm_campaign=powered_by`;
 
 // Same geometry as lib/pdf.ts: percent position of the text's center, font
 // size relative to a CERT_WIDTH-wide certificate. The SVG viewBox uses the
@@ -72,9 +129,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!cert) {
     return { title: 'Certificate not found', robots: { index: false, follow: false } };
   }
-  const title = `${cert.recipient_name} · ${certificateTitle(cert)}`;
-  const issuer = cert.issuer_name ? ` by ${cert.issuer_name}` : '';
-  const description = `Verified certificate issued${issuer} on ${formatDate(cert.issued_date)}. Certificate ID ${cert.verify_id}.`;
+  const l = cert.locale;
+  const title = `${cert.recipient_name} · ${certificateTitle(cert, l)}`;
+  const issuer = cert.issuer_name ? ` ${tx(l, COPY.by)} ${cert.issuer_name}` : '';
+  const description = `${tx(l, COPY.descIssued)}${issuer} ${tx(l, COPY.on)} ${formatDate(cert.issued_date, l)}. ${tx(l, COPY.certificateId)} ${cert.verify_id}.`;
   return {
     title,
     description,
@@ -99,28 +157,29 @@ export default async function VerifyPage({ params }: Props) {
   if (!cert) {
     return (
       <div className={`${sans.className} flex min-h-screen flex-col bg-slate-50`}>
-        <VerifyHeader />
+        <VerifyHeader locale="en" />
         <main className="flex flex-1 items-center justify-center px-5 py-16">
           <div className="max-w-md rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl text-red-600">
               ✕
             </div>
-            <h1 className="mt-4 text-xl font-bold text-gray-900">No certificate with this ID</h1>
+            <h1 className="mt-4 text-xl font-bold text-gray-900">{COPY.notFoundTitle.en}</h1>
             <p className="mt-2 text-sm leading-relaxed text-gray-600">
-              We couldn&apos;t find a certificate with ID{' '}
-              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-800">{params.id}</code>.
-              Check that the link or ID was copied exactly. If it was, this certificate wasn&apos;t
-              issued through SendCert.
+              {COPY.notFoundBody1.en}{' '}
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-800">{params.id}</code>.{' '}
+              {COPY.notFoundBody2.en}
             </p>
           </div>
         </main>
-        <VerifyFooter />
+        <VerifyFooter locale="en" />
       </div>
     );
   }
 
+  const l = cert.locale;
+  const t = (c: Tx) => tx(l, c);
   const expired = isExpired(cert.expiry_date);
-  const title = certificateTitle(cert);
+  const title = certificateTitle(cert, l);
   const pageUrl = `${siteUrl}/verify/${cert.verify_id}`;
 
   const jsonLd = {
@@ -139,12 +198,13 @@ export default async function VerifyPage({ params }: Props) {
   };
 
   return (
+    <LocaleProvider locale={l}>
     <div className={`${sans.className} flex min-h-screen flex-col bg-slate-50`}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <VerifyHeader />
+      <VerifyHeader locale={l} />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6 sm:py-12">
         {/* Status */}
@@ -163,11 +223,11 @@ export default async function VerifyPage({ params }: Props) {
           </span>
           <div>
             <p className={`font-semibold ${expired ? 'text-amber-900' : 'text-emerald-900'}`}>
-              {expired ? 'Genuine certificate · expired' : 'Verified certificate'}
+              {expired ? t(COPY.expiredTitle) : t(COPY.verified)}
             </p>
             <p className={`mt-0.5 text-sm ${expired ? 'text-amber-800' : 'text-emerald-800'}`}>
-              Issued {cert.issuer_name ? `by ${cert.issuer_name} ` : ''}on{' '}
-              {formatDate(cert.issued_date)} through SendCert.
+              {t(COPY.issued)} {cert.issuer_name ? `${t(COPY.by)} ${cert.issuer_name} ` : ''}
+              {t(COPY.on)} {formatDate(cert.issued_date, l)} {t(COPY.through)}
             </p>
           </div>
         </div>
@@ -181,7 +241,7 @@ export default async function VerifyPage({ params }: Props) {
               </div>
             ) : (
               <div className="flex aspect-[1200/927] items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white text-sm text-gray-500">
-                Certificate preview not available
+                {t(COPY.previewUnavailable)}
               </div>
             )}
           </div>
@@ -189,24 +249,24 @@ export default async function VerifyPage({ params }: Props) {
           {/* Details + actions */}
           <aside className="space-y-4 lg:col-span-2">
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Awarded to</p>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{t(COPY.awardedTo)}</p>
               <h1 className="mt-1 text-2xl font-bold leading-tight text-gray-900">
                 {cert.recipient_name}
               </h1>
               <p className="mt-1 text-base text-gray-700">{title}</p>
 
               <dl className="mt-5 space-y-3 border-t border-gray-100 pt-5 text-sm">
-                <Row label="Issued by">{cert.issuer_name ?? '—'}</Row>
-                <Row label="Issue date">{formatDate(cert.issued_date)}</Row>
+                <Row label={t(COPY.issuedBy)}>{cert.issuer_name ?? '—'}</Row>
+                <Row label={t(COPY.issueDate)}>{formatDate(cert.issued_date, l)}</Row>
                 {cert.expiry_date && (
-                  <Row label={expired ? 'Expired on' : 'Valid until'}>
-                    {formatDate(cert.expiry_date)}
+                  <Row label={expired ? t(COPY.expiredOn) : t(COPY.validUntil)}>
+                    {formatDate(cert.expiry_date, l)}
                   </Row>
                 )}
-                <Row label="Certificate ID">
+                <Row label={t(COPY.certificateId)}>
                   <span className="font-mono text-[13px] text-gray-900">{cert.verify_id}</span>
                 </Row>
-                <Row label="Status">
+                <Row label={t(COPY.status)}>
                   <span
                     className={`inline-flex items-center gap-1.5 font-medium ${
                       expired ? 'text-amber-700' : 'text-emerald-700'
@@ -216,17 +276,15 @@ export default async function VerifyPage({ params }: Props) {
                       aria-hidden
                       className={`h-1.5 w-1.5 rounded-full ${expired ? 'bg-amber-500' : 'bg-emerald-500'}`}
                     />
-                    {expired ? 'Expired' : 'Valid'}
+                    {expired ? t(COPY.expired) : t(COPY.valid)}
                   </span>
                 </Row>
               </dl>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-              <p className="text-sm font-semibold text-gray-900">Is this your certificate?</p>
-              <p className="mb-4 mt-1 text-sm text-gray-600">
-                Add it to your profile or share it. This page is the proof that it&apos;s real.
-              </p>
+              <p className="text-sm font-semibold text-gray-900">{t(COPY.yours)}</p>
+              <p className="mb-4 mt-1 text-sm text-gray-600">{t(COPY.yoursBody)}</p>
               <ShareActions verifyId={cert.verify_id} pageUrl={pageUrl} />
             </div>
           </aside>
@@ -234,24 +292,18 @@ export default async function VerifyPage({ params }: Props) {
 
         {/* How verification works */}
         <section className="mt-10 rounded-2xl border border-gray-200 bg-white p-6 sm:p-8">
-          <h2 className="text-base font-semibold text-gray-900">How this verification works</h2>
+          <h2 className="text-base font-semibold text-gray-900">{t(COPY.howTitle)}</h2>
           <div className="mt-5 grid gap-6 sm:grid-cols-3">
-            <Point title="A unique ID">
-              Every certificate sent with SendCert gets its own ID and its own page on sendcert.org.
-            </Point>
-            <Point title="Recorded at issue">
-              This record was created when the certificate was sent. The recipient can&apos;t edit it.
-            </Point>
-            <Point title="Easy to check">
-              If a PDF or printout doesn&apos;t match the name, certificate and date on this page, it
-              isn&apos;t genuine.
-            </Point>
+            <Point title={t(COPY.p1Title)}>{t(COPY.p1)}</Point>
+            <Point title={t(COPY.p2Title)}>{t(COPY.p2)}</Point>
+            <Point title={t(COPY.p3Title)}>{t(COPY.p3)}</Point>
           </div>
         </section>
       </main>
 
-      <VerifyFooter />
+      <VerifyFooter locale={l} />
     </div>
+    </LocaleProvider>
   );
 }
 
@@ -273,34 +325,32 @@ function Point({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function VerifyHeader() {
+function VerifyHeader({ locale }: { locale: Locale }) {
   return (
     <header className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
-        <Link href={HOME_LINK} className="flex items-center gap-2 text-base font-bold text-gray-900">
+        <Link href={homeLink(locale)} className="flex items-center gap-2 text-base font-bold text-gray-900">
           <span className="flex h-7 w-7 items-center justify-center rounded-md bg-brand-600 text-sm text-white">
             S
           </span>
           SendCert
         </Link>
-        <span className="text-xs font-medium text-gray-500">Certificate verification</span>
+        <span className="text-xs font-medium text-gray-500">{tx(locale, COPY.header)}</span>
       </div>
     </header>
   );
 }
 
-function VerifyFooter() {
+function VerifyFooter({ locale }: { locale: Locale }) {
   return (
     <footer className="border-t border-gray-200 bg-white">
       <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-4 py-8 text-center sm:px-6">
-        <p className="max-w-md text-sm text-gray-600">
-          SendCert makes verifiable certificates free for every teacher, trainer and nonprofit.
-        </p>
+        <p className="max-w-md text-sm text-gray-600">{tx(locale, COPY.mission)}</p>
         <Link
-          href={HOME_LINK}
+          href={homeLink(locale)}
           className="text-sm font-semibold text-brand-600 hover:text-brand-700"
         >
-          Issue your own certificates, free →
+          {tx(locale, COPY.issueOwn)}
         </Link>
       </div>
     </footer>

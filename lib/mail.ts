@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { tx, type Locale } from './i18n';
 
 export { isValidEmail } from './validation';
 
@@ -32,6 +33,8 @@ export type MailMessage = {
   linkedInUrl?: string;
   // Test sends: show the verification card with sample links and a note.
   previewVerification?: boolean;
+  // Language of the card, footer and plain-text extras (the body is the sender's).
+  locale?: Locale;
   // The sender's own address for replies; falls back to SMTP_REPLY_TO.
   replyTo?: string;
 };
@@ -112,15 +115,46 @@ export function linkedInRedirectFor(
   return `${SITE_URL}/verify/${verifyId}/linkedin?type=${type}&from=${from}`;
 }
 
-const FOOTER_URL = withUtm(`${SITE_URL}/`, 'certificate_email', 'recipient_footer');
+function footerUrl(locale: Locale): string {
+  return withUtm(`${SITE_URL}${locale === 'es' ? '/es' : '/'}`, 'certificate_email', 'recipient_footer');
+}
 
-const SAMPLE_VERIFY_URL = `${SITE_URL}/#verification`;
+function sampleVerifyUrl(locale: Locale): string {
+  return `${SITE_URL}${locale === 'es' ? '/es' : '/'}#verification`;
+}
+
+// Strings of the certificate card and footer, per language.
+const COPY = {
+  viewVerify: { en: 'View &amp; verify', es: 'Ver y verificar' },
+  addLinkedIn: { en: 'Add to LinkedIn', es: 'Agregar a LinkedIn' },
+  verifiedLabel: { en: '&#10003; Verified certificate', es: '&#10003; Certificado verificado' },
+  attached: { en: 'Your certificate is attached', es: 'Tu certificado está adjunto' },
+  certificateId: { en: 'Certificate ID', es: 'ID del certificado' },
+  explainer: {
+    en: 'Anyone can confirm this certificate is genuine at its verification page. Add it to your LinkedIn profile in one click.',
+    es: 'Cualquier persona puede confirmar que este certificado es auténtico en su página de verificación. Agrégalo a tu perfil de LinkedIn con un clic.',
+  },
+  testNote: {
+    en: 'This is a test. In the real send, each recipient gets their own ID and these buttons open their verification page.',
+    es: 'Esto es una prueba. En el envío real, cada persona recibe su propio ID y estos botones abren su página de verificación.',
+  },
+  sentWith: { en: 'Sent with', es: 'Enviado con' },
+  tagline: {
+    en: 'Free, verifiable certificates for everyone',
+    es: 'Certificados verificables y gratis para todos',
+  },
+  textVerified: { en: 'Verified certificate', es: 'Certificado verificado' },
+  textLinkedIn: { en: 'Add it to your LinkedIn profile', es: 'Agrégalo a tu perfil de LinkedIn' },
+};
 
 function renderHtml(input: MailMessage): string {
   // A test send has no real verification page yet: show the same card with
   // sample links so the sender sees what recipients will get.
+  const locale: Locale = input.locale ?? 'en';
+  const t = (c: { en: string; es: string }) => tx(locale, c);
+  const sample = sampleVerifyUrl(locale);
   const message: MailMessage = input.previewVerification
-    ? { ...input, verifyUrl: SAMPLE_VERIFY_URL, linkedInUrl: SAMPLE_VERIFY_URL, verifyId: 'CERT-2026-XXXX-XXXX' }
+    ? { ...input, verifyUrl: sample, linkedInUrl: sample, verifyId: 'CERT-2026-XXXX-XXXX' }
     : input;
   const body = escapeHtml(message.body).replace(/\n/g, '<br/>');
   const isCertificate = Boolean(message.attachments?.length);
@@ -129,10 +163,10 @@ function renderHtml(input: MailMessage): string {
   const verified = isCertificate && message.verifyUrl;
   const buttons = verified
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:16px;"><tr>
-          <td style="padding:0 8px 8px 0;"><a href="${escapeHtml(message.verifyUrl!)}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 16px;border-radius:8px;">View &amp; verify</a></td>
+          <td style="padding:0 8px 8px 0;"><a href="${escapeHtml(message.verifyUrl!)}" style="display:inline-block;background:#4f46e5;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 16px;border-radius:8px;">${t(COPY.viewVerify)}</a></td>
           ${
             message.linkedInUrl
-              ? `<td style="padding:0 0 8px 0;"><a href="${escapeHtml(message.linkedInUrl)}" style="display:inline-block;background:#ffffff;color:#0a66c2;text-decoration:none;font-size:14px;font-weight:600;padding:9px 15px;border-radius:8px;border:1px solid #0a66c2;">Add to LinkedIn</a></td>`
+              ? `<td style="padding:0 0 8px 0;"><a href="${escapeHtml(message.linkedInUrl)}" style="display:inline-block;background:#ffffff;color:#0a66c2;text-decoration:none;font-size:14px;font-weight:600;padding:9px 15px;border-radius:8px;border:1px solid #0a66c2;">${t(COPY.addLinkedIn)}</a></td>`
               : ''
           }
         </tr></table>`
@@ -143,25 +177,25 @@ function renderHtml(input: MailMessage): string {
         <tr><td style="padding:20px 22px;">
           ${
             verified
-              ? `<p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#047857;">&#10003; Verified certificate</p>`
+              ? `<p style="margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#047857;">${t(COPY.verifiedLabel)}</p>`
               : ''
           }
-          <p style="margin:0;font-size:15px;font-weight:600;color:#111827;">Your certificate is attached</p>
+          <p style="margin:0;font-size:15px;font-weight:600;color:#111827;">${t(COPY.attached)}</p>
           <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">${escapeHtml(attachmentName)}</p>
           ${
             verified && message.verifyId
-              ? `<p style="margin:10px 0 0;font-size:12px;color:#6b7280;">Certificate ID <span style="font-family:Menlo,Consolas,monospace;color:#374151;">${escapeHtml(message.verifyId)}</span></p>`
+              ? `<p style="margin:10px 0 0;font-size:12px;color:#6b7280;">${t(COPY.certificateId)} <span style="font-family:Menlo,Consolas,monospace;color:#374151;">${escapeHtml(message.verifyId)}</span></p>`
               : ''
           }
           ${buttons}
           ${
             verified
-              ? `<p style="margin:4px 0 0;font-size:12px;line-height:18px;color:#6b7280;">Anyone can confirm this certificate is genuine at its verification page. Add it to your LinkedIn profile in one click.</p>`
+              ? `<p style="margin:4px 0 0;font-size:12px;line-height:18px;color:#6b7280;">${t(COPY.explainer)}</p>`
               : ''
           }
           ${
             input.previewVerification
-              ? `<p style="margin:10px 0 0;font-size:12px;line-height:18px;color:#b45309;">This is a test. In the real send, each recipient gets their own ID and these buttons open their verification page.</p>`
+              ? `<p style="margin:10px 0 0;font-size:12px;line-height:18px;color:#b45309;">${t(COPY.testNote)}</p>`
               : ''
           }
         </td></tr>
@@ -169,7 +203,7 @@ function renderHtml(input: MailMessage): string {
     : '';
 
   return `<!doctype html>
-<html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+<html lang="${locale}"><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:32px 16px;">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
@@ -179,7 +213,7 @@ function renderHtml(input: MailMessage): string {
         </td></tr>
       </table>
       <p style="margin:18px 0 0;font-size:12px;color:#9ca3af;">
-        Sent with <a href="${escapeHtml(FOOTER_URL)}" style="color:#6b7280;">SendCert</a> · Free, verifiable certificates for everyone
+        ${t(COPY.sentWith)} <a href="${escapeHtml(footerUrl(locale))}" style="color:#6b7280;">SendCert</a> · ${t(COPY.tagline)}
       </p>
     </td></tr>
   </table>
@@ -187,11 +221,13 @@ function renderHtml(input: MailMessage): string {
 }
 
 function renderText(message: MailMessage): string {
+  const locale: Locale = message.locale ?? 'en';
+  const t = (c: { en: string; es: string }) => tx(locale, c);
   const verifyLine = message.verifyUrl
-    ? `\n\nVerified certificate${message.verifyId ? ` (ID ${message.verifyId})` : ''}: ${message.verifyUrl}` +
-      (message.linkedInUrl ? `\nAdd it to your LinkedIn profile: ${message.linkedInUrl}` : '')
+    ? `\n\n${t(COPY.textVerified)}${message.verifyId ? ` (ID ${message.verifyId})` : ''}: ${message.verifyUrl}` +
+      (message.linkedInUrl ? `\n${t(COPY.textLinkedIn)}: ${message.linkedInUrl}` : '')
     : '';
-  return `${message.body}${verifyLine}\n\n—\nSent with SendCert · Free, verifiable certificates for everyone: ${FOOTER_URL}`;
+  return `${message.body}${verifyLine}\n\n—\n${t(COPY.sentWith)} SendCert · ${t(COPY.tagline)}: ${footerUrl(locale)}`;
 }
 
 /**

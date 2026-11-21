@@ -1,3 +1,5 @@
+import type { Locale } from '@/lib/i18n';
+
 // Browser-only autosave of the certificate design (not the recipient list).
 // IndexedDB instead of localStorage because template images and logos are
 // data URLs that easily exceed localStorage's ~5 MB limit.
@@ -6,6 +8,11 @@ const DB_NAME = 'sendcert';
 const STORE = 'drafts';
 // Bump when the saved shape changes so old drafts are ignored, not misread.
 const DRAFT_KEY = 'design-v1';
+// Each language keeps its own draft, so a Spanish design never loads into the
+// English wizard (and vice versa).
+function draftKey(locale: Locale): string {
+  return locale === 'en' ? DRAFT_KEY : `${DRAFT_KEY}-${locale}`;
+}
 
 export type DesignDraft = {
   savedAt: number;
@@ -41,25 +48,25 @@ async function run<T>(
 
 // All three swallow errors: private browsing or blocked storage must never
 // break the wizard — the draft is a convenience.
-export async function loadDraft(): Promise<DesignDraft | null> {
+export async function loadDraft(locale: Locale = 'en'): Promise<DesignDraft | null> {
   try {
-    return (await run<DesignDraft | undefined>('readonly', (s) => s.get(DRAFT_KEY))) ?? null;
+    return (await run<DesignDraft | undefined>('readonly', (s) => s.get(draftKey(locale)))) ?? null;
   } catch {
     return null;
   }
 }
 
-export async function saveDraft(draft: DesignDraft): Promise<void> {
+export async function saveDraft(draft: DesignDraft, locale: Locale = 'en'): Promise<void> {
   try {
-    await run('readwrite', (s) => s.put(draft, DRAFT_KEY));
+    await run('readwrite', (s) => s.put(draft, draftKey(locale)));
   } catch {
     // ignore
   }
 }
 
-export async function clearDraft(): Promise<void> {
+export async function clearDraft(locale: Locale = 'en'): Promise<void> {
   try {
-    await run('readwrite', (s) => s.delete(DRAFT_KEY));
+    await run('readwrite', (s) => s.delete(draftKey(locale)));
   } catch {
     // ignore
   }
