@@ -14,6 +14,24 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: { id: string } };
 
+type FontFamily = 'helvetica' | 'times' | 'courier';
+
+type TextOverlay = {
+  x: number; // percent, center of the text
+  y: number;
+  fontSize: number; // in template pixels, same units as the PDF
+  color: string;
+  fontFamily?: FontFamily;
+};
+
+type CertificateBatch = {
+  template_image: string;
+  width: number;
+  height: number;
+  text_config: TextOverlay;
+  extra_fields: (TextOverlay & { text: string })[];
+};
+
 type CertificateRecord = {
   verify_id: string;
   recipient_name: string;
@@ -21,8 +39,8 @@ type CertificateRecord = {
   issuer_name: string | null;
   issued_date: string;
   expiry_date: string | null;
-  certificate_image_url: string | null;
   verify_domain: string;
+  certificate_batches: CertificateBatch | null;
 };
 
 async function fetchCertificate(verifyId: string): Promise<CertificateRecord | null> {
@@ -31,12 +49,57 @@ async function fetchCertificate(verifyId: string): Promise<CertificateRecord | n
   const { data, error } = await supabase
     .from('certificates_issued')
     .select(
-      'verify_id, recipient_name, course_name, issuer_name, issued_date, expiry_date, certificate_image_url, verify_domain',
+      'verify_id, recipient_name, course_name, issuer_name, issued_date, expiry_date, verify_domain, certificate_batches(template_image, width, height, text_config, extra_fields)',
     )
     .eq('verify_id', verifyId)
     .maybeSingle();
   if (error || !data) return null;
-  return data as CertificateRecord;
+  return data as unknown as CertificateRecord;
+}
+
+const SVG_FONTS: Record<FontFamily, string> = {
+  helvetica: 'Helvetica, Arial, sans-serif',
+  times: 'Georgia, "Times New Roman", serif',
+  courier: '"Courier New", monospace',
+};
+
+// Same geometry as lib/pdf.ts: percent position of the text's center, font
+// size in template pixels. The SVG viewBox uses the original template size,
+// so it scales to any screen width without changing the layout.
+function CertificateSvg({ batch, name }: { batch: CertificateBatch; name: string }) {
+  const overlays = [{ ...batch.text_config, text: name }, ...(batch.extra_fields ?? [])];
+  return (
+    <svg
+      viewBox={`0 0 ${batch.width} ${batch.height}`}
+      className="block h-auto w-full"
+      role="img"
+      aria-label={`Certificate for ${name}`}
+    >
+      <image
+        href={batch.template_image}
+        x={0}
+        y={0}
+        width={batch.width}
+        height={batch.height}
+        preserveAspectRatio="none"
+      />
+      {overlays.map((o, i) => (
+        <text
+          key={i}
+          x={(o.x / 100) * batch.width}
+          y={(o.y / 100) * batch.height}
+          fontSize={o.fontSize}
+          fill={o.color}
+          fontFamily={SVG_FONTS[o.fontFamily ?? 'helvetica']}
+          fontWeight={700}
+          textAnchor="middle"
+          dominantBaseline="central"
+        >
+          {o.text}
+        </text>
+      ))}
+    </svg>
+  );
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -156,14 +219,9 @@ export default async function VerifyPage({ params }: Props) {
         </div>
 
         {/* Certificate image */}
-        {cert.certificate_image_url && (
+        {cert.certificate_batches && (
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={cert.certificate_image_url}
-              alt={`Certificate for ${cert.recipient_name}`}
-              className="block w-full"
-            />
+            <CertificateSvg batch={cert.certificate_batches} name={cert.recipient_name} />
           </div>
         )}
 

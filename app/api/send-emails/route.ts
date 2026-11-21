@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import sharp from 'sharp';
 import { generateCertificatePdf } from '@/lib/pdf';
-import { generateCertificateImagePng } from '@/lib/certificateImage';
 import { PRESET_TEMPLATES } from '@/lib/templates';
 import {
   createTransporter,
@@ -214,11 +214,43 @@ export async function POST(req: NextRequest) {
   const issuedDateIso = issuedDate.toISOString().slice(0, 10);
   const expiryDateIso = expiryDate.toISOString().slice(0, 10);
 
-  // Lazy-init service client only when we'll actually use it.
+  // Logged-in sends store the template once per batch; each certificate row
+  // references it, and the verify page draws the recipient's name on top.
   const supabaseService =
     userId && isSupabaseServiceConfigured()
       ? createServiceSupabaseClient()
       : null;
+  let batchId: string | null = null;
+  if (supabaseService && userId) {
+    try {
+      const meta = await sharp(baseImage).metadata();
+      const width = meta.width ?? 1200;
+      const height = meta.height ?? 900;
+      // The stored copy is downscaled to keep rows small; the verify page
+      // still uses the original width/height as its coordinate space.
+      const preview = await sharp(baseImage)
+        .resize({ width: Math.min(width, 1600) })
+        .flatten({ background: '#ffffff' })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+      const { data, error } = await supabaseService
+        .from('certificate_batches')
+        .insert({
+          user_id: userId,
+          template_image: `data:image/jpeg;base64,${preview.toString('base64')}`,
+          width,
+          height,
+          text_config: textConfig,
+          extra_fields: extraFields ?? [],
+        })
+        .select('id')
+        .single();
+      if (error) console.error('certificate_batches insert failed:', error);
+      else batchId = data.id as string;
+    } catch (err) {
+      console.error('Preparing certificate batch failed:', err);
+    }
+  }
 
   const encoder = new TextEncoder();
 
@@ -277,33 +309,21 @@ export async function POST(req: NextRequest) {
           // a DB error back as a per-recipient failure. Worst case the user
           // doesn't get a verify URL for this row.
           let verifyId: string | undefined;
-          if (supabaseService && userId) {
+          if (supabaseService && userId && batchId) {
             try {
               const candidateId = generateVerifyId(issuedDate);
-              const imagePng = await generateCertificateImagePng({
-                imageBuffer: baseImage,
-                name,
-                x: textConfig.x,
-                y: textConfig.y,
-                fontSize: textConfig.fontSize,
-                color: textConfig.color,
-                fontFamily: textConfig.fontFamily,
-                extraFields,
-              });
-              const imageDataUrl = `data:image/png;base64,${imagePng.toString('base64')}`;
-
               const { error: insertError } = await supabaseService
                 .from('certificates_issued')
                 .insert({
                   verify_id: candidateId,
                   user_id: userId,
+                  batch_id: batchId,
                   recipient_name: name,
                   recipient_email: email,
                   course_name: inferredCourseName,
                   issuer_name: smtpConfig.fromName ?? 'SendCert',
                   issued_date: issuedDateIso,
                   expiry_date: expiryDateIso,
-                  certificate_image_url: imageDataUrl,
                 });
               if (!insertError) {
                 verifyId = candidateId;
