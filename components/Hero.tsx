@@ -13,6 +13,9 @@ export default function Hero() {
     <section className="overflow-hidden bg-white">
       <div className="mx-auto grid max-w-6xl items-center gap-14 px-5 pb-20 pt-14 sm:px-6 lg:grid-cols-2 lg:gap-12 lg:pb-28 lg:pt-20">
         <div className="text-center lg:text-left">
+          <p className="mb-4 text-sm font-semibold uppercase tracking-wide text-brand-600">
+            For schools, trainers and nonprofits
+          </p>
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.08]">
             Personalized certificates, emailed to everyone in minutes
           </h1>

@@ -44,6 +44,9 @@ export default function LandingPage() {
             SendCert
           </Link>
           <nav className="flex items-center gap-5 text-sm">
+            <Link href="/for-organizations" className="hidden text-gray-600 hover:text-gray-900 md:inline">
+              For organizations
+            </Link>
             <Link href="/blog" className="hidden text-gray-600 hover:text-gray-900 sm:inline">
               Blog
             </Link>
@@ -78,6 +81,9 @@ export default function LandingPage() {
           <nav className="flex gap-6">
             <Link href="/app" className="hover:text-gray-900">
               App
+            </Link>
+            <Link href="/for-organizations" className="hover:text-gray-900">
+              For organizations
             </Link>
             <Link href="/blog" className="hover:text-gray-900">
               Blog
