@@ -619,10 +619,12 @@ export default function PreviewStep({
                   disabled={validRecipients.length === 0}
                   className="mt-4 w-full rounded-lg bg-brand-600 px-6 py-3 font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {t(
-                    `Send to ${validRecipients.length} recipients`,
-                    `Enviar a ${validRecipients.length} destinatarios`,
-                  )}
+                  {validRecipients.length === 1
+                    ? t('Send to 1 recipient', 'Enviar a 1 destinatario')
+                    : t(
+                        `Send to ${validRecipients.length} recipients`,
+                        `Enviar a ${validRecipients.length} destinatarios`,
+                      )}
                 </button>
               )}
 
