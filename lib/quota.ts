@@ -68,6 +68,7 @@ export async function consumeGuestQuota(ipHash: string, amount: number): Promise
 export async function logSend(entry: {
   userId: string | null;
   ipHash: string;
+  template: string | null;
   recipients: number;
   sent: number;
   failed: number;
@@ -76,6 +77,7 @@ export async function logSend(entry: {
   const { error } = await createServiceSupabaseClient().from('send_log').insert({
     user_id: entry.userId,
     ip_hash: entry.ipHash,
+    template: entry.template,
     recipients: entry.recipients,
     sent: entry.sent,
     failed: entry.failed,

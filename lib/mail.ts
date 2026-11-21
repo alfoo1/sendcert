@@ -25,6 +25,10 @@ export type MailMessage = {
     content: Buffer;
     contentType?: string;
   }[];
+  // Public verification page for this certificate (signed-in senders only).
+  verifyUrl?: string;
+  // The sender's own address for replies; falls back to SMTP_REPLY_TO.
+  replyTo?: string;
 };
 
 /**
@@ -79,28 +83,83 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
-// Every outgoing email carries this small brand footer as plain text.
-const FOOTER =
-  '\n\n—\nSent with SendCert · Create and send your certificates for free at sendcert.org';
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://sendcert.org').replace(/\/$/, '');
+
+/** Adds UTM tags so visits coming from our emails show up in analytics. */
+export function withUtm(url: string, source: string, campaign: string): string {
+  const u = new URL(url);
+  u.searchParams.set('utm_source', source);
+  u.searchParams.set('utm_medium', 'email');
+  u.searchParams.set('utm_campaign', campaign);
+  return u.toString();
+}
+
+export function verifyUrlFor(verifyId: string): string {
+  return withUtm(`${SITE_URL}/verify/${verifyId}`, 'certificate_email', 'verify_link');
+}
+
+const FOOTER_URL = withUtm(`${SITE_URL}/`, 'certificate_email', 'recipient_footer');
+
+function renderHtml(message: MailMessage): string {
+  const body = escapeHtml(message.body).replace(/\n/g, '<br/>');
+  const isCertificate = Boolean(message.attachments?.length);
+  const attachmentName = message.attachments?.[0]?.filename ?? 'certificate.pdf';
+
+  const certificateCard = isCertificate
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;background:#f5f5ff;border:1px solid #e0e0ff;border-radius:10px;">
+        <tr><td style="padding:18px 20px;">
+          <p style="margin:0;font-size:14px;font-weight:600;color:#111827;">Your certificate is attached</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#6b7280;">${escapeHtml(attachmentName)}</p>
+          ${
+            message.verifyUrl
+              ? `<a href="${escapeHtml(message.verifyUrl)}" style="display:inline-block;margin-top:14px;background:#4f46e5;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:8px;">View and verify online</a>
+                 <p style="margin:10px 0 0;font-size:12px;line-height:18px;color:#6b7280;">Share this link on LinkedIn or with an employer so anyone can confirm the certificate is real.</p>`
+              : ''
+          }
+        </td></tr>
+      </table>`
+    : '';
+
+  return `<!doctype html>
+<html><body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;">
+        <tr><td style="padding:32px;font-size:15px;line-height:24px;color:#1f2937;">
+          ${body}
+          ${certificateCard}
+        </td></tr>
+      </table>
+      <p style="margin:18px 0 0;font-size:12px;color:#9ca3af;">
+        Sent with <a href="${escapeHtml(FOOTER_URL)}" style="color:#6b7280;">SendCert</a> · Create and send certificates for free
+      </p>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+function renderText(message: MailMessage): string {
+  const verifyLine = message.verifyUrl
+    ? `\n\nView and verify your certificate online: ${message.verifyUrl}`
+    : '';
+  return `${message.body}${verifyLine}\n\n—\nSent with SendCert · Create and send certificates for free: ${FOOTER_URL}`;
+}
 
 /**
- * Sends one email through the provided transporter with the SendCert footer.
+ * Sends one email with an HTML layout plus a plain-text alternative.
  */
 export async function sendMail(
   transporter: nodemailer.Transporter,
   cfg: ServerSmtpConfig,
   message: MailMessage,
 ) {
-  const from = `"${cfg.fromName}" <${cfg.fromEmail}>`;
-  const bodyWithFooter = message.body + FOOTER;
-
   return transporter.sendMail({
-    from,
+    from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
     to: message.to,
     subject: message.subject,
-    text: bodyWithFooter,
-    html: escapeHtml(bodyWithFooter).replace(/\n/g, '<br/>'),
+    text: renderText(message),
+    html: renderHtml(message),
     attachments: message.attachments,
-    ...(cfg.replyTo ? { replyTo: cfg.replyTo } : {}),
+    ...(message.replyTo || cfg.replyTo ? { replyTo: message.replyTo || cfg.replyTo } : {}),
   });
 }

@@ -94,13 +94,13 @@ export async function POST(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="certificado-${encodeURIComponent(name)}.pdf"`,
+        'Content-Disposition': `inline; filename="certificate-${encodeURIComponent(name)}.pdf"`,
       },
     });
   } catch (err) {
-    console.error('Error generando certificado:', err);
+    console.error('Certificate generation failed:', err);
     return NextResponse.json(
-      { error: 'No se pudo generar el certificado.' },
+      { error: err instanceof Error ? err.message : 'Could not generate the certificate.' },
       { status: 500 },
     );
   }

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { CERT_WIDTH } from '@/lib/certificateSize';
 import {
   createServiceSupabaseClient,
   isSupabaseServiceConfigured,
@@ -19,7 +20,7 @@ type FontFamily = 'helvetica' | 'times' | 'courier';
 type TextOverlay = {
   x: number; // percent, center of the text
   y: number;
-  fontSize: number; // in template pixels, same units as the PDF
+  fontSize: number; // relative to a CERT_WIDTH-wide certificate
   color: string;
   fontFamily?: FontFamily;
 };
@@ -64,8 +65,8 @@ const SVG_FONTS: Record<FontFamily, string> = {
 };
 
 // Same geometry as lib/pdf.ts: percent position of the text's center, font
-// size in template pixels. The SVG viewBox uses the original template size,
-// so it scales to any screen width without changing the layout.
+// size relative to a CERT_WIDTH-wide certificate. The SVG viewBox uses the
+// original template size, so it scales to any screen width.
 function CertificateSvg({ batch, name }: { batch: CertificateBatch; name: string }) {
   const overlays = [{ ...batch.text_config, text: name }, ...(batch.extra_fields ?? [])];
   return (
@@ -88,7 +89,7 @@ function CertificateSvg({ batch, name }: { batch: CertificateBatch; name: string
           key={i}
           x={(o.x / 100) * batch.width}
           y={(o.y / 100) * batch.height}
-          fontSize={o.fontSize}
+          fontSize={o.fontSize * (batch.width / CERT_WIDTH)}
           fill={o.color}
           fontFamily={SVG_FONTS[o.fontFamily ?? 'helvetica']}
           fontWeight={700}
@@ -278,7 +279,10 @@ export default async function VerifyPage({ params }: Props) {
         <footer className="mt-8 text-center text-xs text-gray-500">
           <p>
             Powered by{' '}
-            <Link href="/" className="font-medium text-brand-600 underline">
+            <Link
+              href="/?utm_source=verify_page&utm_medium=referral&utm_campaign=powered_by"
+              className="font-medium text-brand-600 underline"
+            >
               SendCert
             </Link>{' '}
             · {cert.verify_domain}

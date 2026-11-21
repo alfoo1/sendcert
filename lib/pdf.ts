@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont } from 'pdf-lib';
 import sharp from 'sharp';
+import { CERT_WIDTH } from '@/lib/certificateSize';
 
 export type PdfFontFamily = 'helvetica' | 'times' | 'courier';
 
@@ -52,6 +53,44 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
  */
 async function normalizeToPng(input: Buffer): Promise<Buffer> {
   return sharp(input).png().toBuffer();
+}
+
+// Letters whose accent-free form isn't produced by Unicode decomposition.
+const LATIN_FALLBACKS: Record<string, string> = {
+  ł: 'l', Ł: 'L', đ: 'd', Đ: 'D', ħ: 'h', Ħ: 'H', ı: 'i', ŧ: 't', Ŧ: 'T',
+};
+
+/**
+ * The standard PDF fonts only cover Western European characters and throw on
+ * anything else (e.g. "Nguyễn"). Characters they can't print fall back to
+ * their accent-free letter. Names that would lose most of their letters
+ * (another alphabet entirely) throw a readable error instead of producing a
+ * certificate with a blank or mangled name.
+ */
+function toPrintable(text: string, charset: Set<number>): string {
+  let out = '';
+  let dropped = 0;
+  for (const ch of text) {
+    if (charset.has(ch.codePointAt(0)!)) {
+      out += ch;
+      continue;
+    }
+    const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (base && [...base].every((c) => charset.has(c.codePointAt(0)!))) {
+      out += base;
+    } else if (LATIN_FALLBACKS[ch]) {
+      out += LATIN_FALLBACKS[ch];
+    } else if (/\p{L}|\p{N}/u.test(ch)) {
+      dropped += 1;
+    }
+  }
+  const letters = [...text].filter((c) => /\p{L}|\p{N}/u.test(c)).length;
+  if (letters > 0 && dropped / letters > 0.3) {
+    throw new Error(
+      `"${text}" uses characters the certificate font can't print yet (supported: Latin alphabets).`,
+    );
+  }
+  return out.replace(/\s+/g, ' ').trim();
 }
 
 const FONT_MAP: Record<PdfFontFamily, StandardFonts> = {
@@ -119,6 +158,11 @@ export async function generateCertificatePdf(
   ) {
     if (!text) return;
     const font = await getFont(family);
+    text = toPrintable(text, new Set(font.getCharacterSet()));
+    // Font sizes are set against a CERT_WIDTH-wide certificate in the editor;
+    // the actual image may be wider (html2canvas captures at 2x) or any size
+    // (custom uploads), so scale to keep the PDF identical to the preview.
+    size = size * (imgWidth / CERT_WIDTH);
     const width = font.widthOfTextAtSize(text, size);
     const height = font.heightAtSize(size);
     const pxX = (xPct / 100) * imgWidth - width / 2;

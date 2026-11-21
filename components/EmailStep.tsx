@@ -1,6 +1,9 @@
 'use client';
 
-export type EmailConfig = { subject: string; body: string };
+import { isValidEmail } from '@/lib/validation';
+
+// replyTo: where recipients' replies go. Empty means SendCert's inbox.
+export type EmailConfig = { subject: string; body: string; replyTo?: string };
 
 type Props = {
   emailConfig: EmailConfig;
@@ -49,6 +52,30 @@ export default function EmailStep({ emailConfig, onEmailConfigChange }: Props) {
           />
           <p className="mt-1 text-xs text-gray-500">
             Available variable: <code className="rounded bg-gray-100 px-1">{'{{name}}'}</code>
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">
+            Your email for replies <span className="font-normal text-gray-400">(optional)</span>
+          </label>
+          <input
+            type="email"
+            value={emailConfig.replyTo ?? ''}
+            onChange={(e) => update('replyTo', e.target.value)}
+            placeholder="you@school.org"
+            className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+          <p
+            className={`mt-1 text-xs ${
+              emailConfig.replyTo && !isValidEmail(emailConfig.replyTo)
+                ? 'text-red-600'
+                : 'text-gray-500'
+            }`}
+          >
+            {emailConfig.replyTo && !isValidEmail(emailConfig.replyTo)
+              ? 'Enter a valid email or leave it empty.'
+              : 'When a recipient hits Reply, their message comes to you.'}
           </p>
         </div>
       </div>

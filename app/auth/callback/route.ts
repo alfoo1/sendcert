@@ -15,7 +15,11 @@ export const runtime = 'nodejs';
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
-  const next = url.searchParams.get('next') ?? '/dashboard';
+  // Only same-site paths: "//evil.com" or "https://evil.com" would turn the
+  // login link into an open redirect.
+  const requested = url.searchParams.get('next') ?? '';
+  const next =
+    requested.startsWith('/') && !requested.startsWith('//') ? requested : '/dashboard';
 
   if (!isSupabaseConfigured()) {
     return NextResponse.redirect(new URL('/login?error=not_configured', url));

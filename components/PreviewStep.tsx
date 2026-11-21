@@ -20,6 +20,8 @@ type Props = {
   // Navigational callbacks fired from the success screen.
   onResetAll: () => void;
   onResetAudience: () => void;
+  // 'custom' for an uploaded design, otherwise the built-in template id.
+  templateKind: string;
 };
 
 // Converts UI-side extra fields to the wire shape the API expects.
@@ -138,9 +140,11 @@ export default function PreviewStep({
   emailConfig,
   onResetAll,
   onResetAudience,
+  templateKind,
 }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [sendState, setSendState] = useState<SendState>({ phase: 'idle' });
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [waitlistMessage, setWaitlistMessage] = useState('');
@@ -185,12 +189,21 @@ export default function PreviewStep({
             extraFields: toApiExtraFields(extraFields),
           }),
         });
-        if (!res.ok) throw new Error('Could not generate preview');
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? 'Could not generate preview');
+        }
         const blob = await res.blob();
         objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) setPreviewUrl(objectUrl);
-      } catch {
-        if (!cancelled) setPreviewUrl(null);
+        if (!cancelled) {
+          setPreviewUrl(objectUrl);
+          setPreviewError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setPreviewUrl(null);
+          setPreviewError(err instanceof Error ? err.message : 'Could not generate preview');
+        }
       } finally {
         if (!cancelled) setPreviewLoading(false);
       }
@@ -258,6 +271,7 @@ export default function PreviewStep({
           textConfig,
           emailConfig,
           extraFields: toApiExtraFields(extraFields),
+          templateKind,
         }),
       });
 
@@ -425,8 +439,8 @@ export default function PreviewStep({
                 className="h-full w-full"
               />
             ) : (
-              <div className="flex h-full items-center justify-center text-red-500">
-                Could not generate preview
+              <div className="flex h-full items-center justify-center p-6 text-center text-sm text-red-600">
+                {previewError ?? 'Could not generate preview'}
               </div>
             )}
           </div>

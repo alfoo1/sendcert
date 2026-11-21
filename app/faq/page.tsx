@@ -49,7 +49,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Can I upload my own certificate design?',
     answer:
-      'Yes. Design your certificate in Canva, Figma, Photoshop, or any tool that exports to JPG or PNG, then upload it in step 1 of the wizard. Leave visible blank space where the recipient name should land — you can then drag the name to the correct position on the live preview. If you prefer, we also ship three professionally designed templates (Classic, Modern, Nature) that you can customize without any outside design work.',
+      'Yes. Design your certificate in Canva, Figma, Photoshop, or any tool that exports to JPG or PNG, then upload it in step 1 of the wizard. Leave visible blank space where the recipient name should land — you can then drag the name to the correct position on the live preview. If you prefer, pick one of six professionally designed templates and customize every text, color and logo without any outside design work.',
   },
   {
     question: 'How do recipients receive their certificates?',
@@ -74,7 +74,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: 'Does it work for any language?',
     answer:
-      'Yes. Every text element on the built-in templates — heading, subtitle, body text, signature, date — is a fully editable field in the sidebar. Type your content in any language, including non-Latin scripts, and it will render in the final PDF. Recipient names can include accents, tildes, cedillas, and most Unicode characters. For the best visual result, pick a font that includes the glyphs your language needs.',
+      'Mostly. Every text element on the built-in templates — heading, subtitle, body text, signatures — is an editable field, so you can write the certificate in any language. Recipient names print in Latin alphabets, including accents, tildes, and cedillas (José, Núñez, François). Letters outside the standard PDF fonts, like the Vietnamese ễ or Polish ł, print as their base letter. Names written entirely in another alphabet, such as Chinese or Arabic, are not supported yet.',
   },
   {
     question: 'Can I send certificates in Spanish or other languages?',

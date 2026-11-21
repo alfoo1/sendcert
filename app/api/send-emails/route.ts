@@ -9,6 +9,8 @@ import {
   loadSmtpConfigFromEnv,
   renderTemplate,
   sendMail,
+  verifyUrlFor,
+  type ServerSmtpConfig,
 } from '@/lib/mail';
 import { isValidEmail } from '@/lib/validation';
 import { getClientIp } from '@/lib/rateLimit';
@@ -55,11 +57,14 @@ type SendEmailsBody = {
   emailConfig: {
     subject: string;
     body: string;
+    replyTo?: string;
   };
   extraFields?: ExtraFieldPayload[];
   // Optional override for the certificate's stored "course name" — falls
   // back to the email subject (with `{{name}}` stripped) when missing.
   courseName?: string;
+  // 'custom' for an uploaded design, otherwise the built-in template id.
+  templateKind?: string;
 };
 
 type ResultEntry = {
@@ -116,6 +121,7 @@ export async function POST(req: NextRequest) {
     emailConfig,
     extraFields,
     courseName,
+    templateKind,
   } = body;
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
@@ -166,7 +172,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let smtpConfig;
+  let smtpConfig: ServerSmtpConfig;
   try {
     smtpConfig = loadSmtpConfigFromEnv();
   } catch (err) {
@@ -176,6 +182,10 @@ export async function POST(req: NextRequest) {
     );
   }
   const transporter = createTransporter(smtpConfig);
+  // Optional sender address for replies; ignored unless it's a valid email.
+  const senderReplyTo = isValidEmail(emailConfig.replyTo ?? '')
+    ? emailConfig.replyTo!.trim()
+    : undefined;
 
   // ---------- Monthly quota ----------
   // Reserved only after the template and SMTP checks pass, so a request
@@ -269,11 +279,38 @@ export async function POST(req: NextRequest) {
       let sent = 0;
       let failed = 0;
 
+      // Saves the verification record before the email goes out so the link
+      // inside the email works immediately. Retries once on an ID collision.
+      async function reserveVerifyId(name: string, email: string): Promise<string | null> {
+        if (!supabaseService || !userId || !batchId) return null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const candidateId = generateVerifyId(issuedDate);
+          const { error } = await supabaseService.from('certificates_issued').insert({
+            verify_id: candidateId,
+            user_id: userId,
+            batch_id: batchId,
+            recipient_name: name,
+            recipient_email: email,
+            course_name: inferredCourseName,
+            issuer_name: smtpConfig.fromName ?? 'SendCert',
+            issued_date: issuedDateIso,
+            expiry_date: expiryDateIso,
+          });
+          if (!error) return candidateId;
+          if (error.code !== '23505') {
+            console.error('certificates_issued insert failed:', error);
+            return null;
+          }
+        }
+        return null;
+      }
+
       for (let i = 0; i < validRecipients.length; i++) {
         const recipient = validRecipients[i];
         const name = recipient.name.trim();
         const email = recipient.email.trim();
         let result: ResultEntry;
+        let verifyId: string | null = null;
 
         try {
           const pdfBytes = await generateCertificatePdf({
@@ -287,13 +324,13 @@ export async function POST(req: NextRequest) {
             extraFields,
           });
 
-          const subject = renderTemplate(emailConfig.subject, { name });
-          const mailBody = renderTemplate(emailConfig.body, { name });
+          verifyId = await reserveVerifyId(name, email);
 
           await sendMail(transporter, smtpConfig, {
             to: email,
-            subject,
-            body: mailBody,
+            replyTo: senderReplyTo,
+            subject: renderTemplate(emailConfig.subject, { name }),
+            body: renderTemplate(emailConfig.body, { name }),
             attachments: [
               {
                 filename: `certificate-${name.replace(/\s+/g, '-')}.pdf`,
@@ -301,43 +338,16 @@ export async function POST(req: NextRequest) {
                 contentType: 'application/pdf',
               },
             ],
+            verifyUrl: verifyId ? verifyUrlFor(verifyId) : undefined,
           });
           sent += 1;
-
-          // Persist to Supabase only for logged-in users. Failures here are
-          // non-fatal — the email already shipped, we don't want to bubble
-          // a DB error back as a per-recipient failure. Worst case the user
-          // doesn't get a verify URL for this row.
-          let verifyId: string | undefined;
-          if (supabaseService && userId && batchId) {
-            try {
-              const candidateId = generateVerifyId(issuedDate);
-              const { error: insertError } = await supabaseService
-                .from('certificates_issued')
-                .insert({
-                  verify_id: candidateId,
-                  user_id: userId,
-                  batch_id: batchId,
-                  recipient_name: name,
-                  recipient_email: email,
-                  course_name: inferredCourseName,
-                  issuer_name: smtpConfig.fromName ?? 'SendCert',
-                  issued_date: issuedDateIso,
-                  expiry_date: expiryDateIso,
-                });
-              if (!insertError) {
-                verifyId = candidateId;
-              } else {
-                console.error('certificates_issued insert failed:', insertError);
-              }
-            } catch (dbErr) {
-              console.error('Persist verify record failed:', dbErr);
-            }
-          }
-
-          result = { email, name, status: 'ok', verifyId };
+          result = { email, name, status: 'ok', verifyId: verifyId ?? undefined };
         } catch (err) {
           failed += 1;
+          // The certificate was never delivered, so its verify record must go.
+          if (verifyId && supabaseService) {
+            await supabaseService.from('certificates_issued').delete().eq('verify_id', verifyId);
+          }
           result = {
             email,
             name,
@@ -363,6 +373,7 @@ export async function POST(req: NextRequest) {
       await logSend({
         userId,
         ipHash,
+        template: typeof templateKind === 'string' ? templateKind.slice(0, 40) : null,
         recipients: validRecipients.length,
         sent,
         failed,

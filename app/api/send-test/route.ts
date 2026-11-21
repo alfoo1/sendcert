@@ -39,6 +39,7 @@ type SendTestBody = {
   emailConfig: {
     subject: string;
     body: string;
+    replyTo?: string;
   };
   extraFields?: ExtraFieldPayload[];
 };
@@ -110,6 +111,10 @@ export async function POST(req: NextRequest) {
       );
     }
     const transporter = createTransporter(smtpConfig);
+  // Optional sender address for replies; ignored unless it's a valid email.
+  const senderReplyTo = isValidEmail(emailConfig.replyTo ?? '')
+    ? emailConfig.replyTo!.trim()
+    : undefined;
 
     const pdfBytes = await generateCertificatePdf({
       imageBuffer: baseImage,
@@ -127,6 +132,7 @@ export async function POST(req: NextRequest) {
 
     await sendMail(transporter, smtpConfig, {
       to: email,
+      replyTo: senderReplyTo,
       subject,
       body: mailBody,
       attachments: [

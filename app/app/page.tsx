@@ -1,8 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import StepIndicator from '@/components/StepIndicator';
+import { CERT_HEIGHT, CERT_WIDTH } from '@/components/CertificateRenderer';
+import { trackEvent } from '@/components/Analytics';
+import { clearDraft, loadDraft, saveDraft } from '@/lib/draft';
 import TemplateStep from '@/components/TemplateStep';
 import ConfigStep, { type TextConfig } from '@/components/ConfigStep';
 import StudentsStep, { type Recipient } from '@/components/StudentsStep';
@@ -19,8 +22,8 @@ import {
   type ExtraField,
 } from '@/lib/extraFields';
 
-// Main wizard. No auth, no DB — everything lives in component state during the
-// session. The only server round-trips are PDF generation and email delivery.
+// Main wizard. State lives in the component; the design (not the recipient
+// list) is autosaved in the browser so a refresh or a later visit resumes it.
 export default function SendCertApp() {
   const [step, setStep] = useState(1);
 
@@ -66,9 +69,72 @@ export default function SendCertApp() {
   };
   const [emailConfig, setEmailConfig] = useState<EmailConfig>(DEFAULT_EMAIL_CONFIG);
 
+  // ---------- Design autosave ----------
+  // `draftLoaded` blocks saving until the stored draft has been read, so the
+  // empty initial state never overwrites it.
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadDraft().then((draft) => {
+      if (cancelled) return;
+      const knownTemplate =
+        draft?.templateDataUrl ||
+        (draft?.templateId && PRESET_TEMPLATES.some((t) => t.id === draft.templateId));
+      if (draft && knownTemplate) {
+        setTemplateDataUrl(draft.templateDataUrl);
+        setTemplateId(draft.templateId);
+        setRenderedTemplateDataUrl(draft.renderedTemplateDataUrl);
+        setTextConfig(draft.textConfig as TextConfig);
+        setContent(draft.content as CertificateContent | null);
+        setExtraFields(draft.extraFields as ExtraField[]);
+        setEmailConfig(draft.emailConfig as EmailConfig);
+        setStep(2);
+        setDraftRestored(true);
+      }
+      setDraftLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!draftLoaded || !(templateDataUrl || templateId)) return;
+    const timer = setTimeout(() => {
+      saveDraft({
+        savedAt: Date.now(),
+        templateDataUrl,
+        templateId,
+        renderedTemplateDataUrl,
+        textConfig,
+        content,
+        extraFields,
+        emailConfig,
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [
+    draftLoaded,
+    templateDataUrl,
+    templateId,
+    renderedTemplateDataUrl,
+    textConfig,
+    content,
+    extraFields,
+    emailConfig,
+  ]);
+
+  useEffect(() => {
+    trackEvent('wizard_step', { step });
+  }, [step]);
+
   // Reset callbacks exposed to the success screen in PreviewStep.
   // `resetAll` clears every wizard step — fresh start.
   function resetAll() {
+    clearDraft();
+    setDraftRestored(false);
     setStep(1);
     setTemplateDataUrl(null);
     setTemplateId(null);
@@ -112,7 +178,7 @@ export default function SendCertApp() {
           y: preset.defaultY,
           fontSize: preset.defaultFontSize,
           color: preset.defaultColor,
-          fontFamily: 'helvetica',
+          fontFamily: preset.defaultFontFamily,
         });
       }
       setContent(getDefaultContent(payload.templateId));
@@ -123,7 +189,7 @@ export default function SendCertApp() {
 
   // Dynamically import html2canvas only when needed — it's a large dep and
   // the landing/blog shouldn't pay for it. Captures the hidden natural-size
-  // certificate copy (not the visible scaled one) for a clean 1200x900 PNG.
+  // certificate copy (not the visible scaled one) at CERT_WIDTH x CERT_HEIGHT.
   //
   // Before snapshotting we:
   //   1. Flush React state by waiting for two animation frames (one for
@@ -177,10 +243,10 @@ export default function SendCertApp() {
         backgroundColor: '#ffffff',
         useCORS: true,
         logging: false,
-        width: 1200,
-        height: 900,
-        windowWidth: 1200,
-        windowHeight: 900,
+        width: CERT_WIDTH,
+        height: CERT_HEIGHT,
+        windowWidth: CERT_WIDTH,
+        windowHeight: CERT_HEIGHT,
       });
       return canvas.toDataURL('image/png');
     } catch (err) {
@@ -211,7 +277,9 @@ export default function SendCertApp() {
         return recipients.some((r) => r.name && isValidEmail(r.email));
       case 4:
         return (
-          emailConfig.subject.trim().length > 0 && emailConfig.body.trim().length > 0
+          emailConfig.subject.trim().length > 0 &&
+          emailConfig.body.trim().length > 0 &&
+          (!emailConfig.replyTo?.trim() || isValidEmail(emailConfig.replyTo))
         );
       default:
         return true;
@@ -227,6 +295,8 @@ export default function SendCertApp() {
   const effectiveTemplateId = templateDataUrl || renderedTemplateDataUrl
     ? null
     : templateId;
+  // For usage stats: did they upload their own design or use one of ours?
+  const templateKind = templateDataUrl ? 'custom' : (templateId ?? 'unknown');
 
   return (
     <>
@@ -259,14 +329,19 @@ export default function SendCertApp() {
           <StepIndicator currentStep={step} />
         </div>
 
-        {/* We mount ConfigStep even when hidden so the certificateRef stays
-            attached — React re-mounts child trees when we switch with
-            conditional rendering, which would destroy the DOM node we need for
-            capture on step 2 → 3 transition.
+        {draftRestored && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-100 bg-brand-50 px-4 py-2.5 text-sm text-gray-700">
+            <span>Welcome back. We restored your last certificate design.</span>
+            <button
+              type="button"
+              onClick={resetAll}
+              className="font-medium text-brand-700 underline hover:text-brand-900"
+            >
+              Start over
+            </button>
+          </div>
+        )}
 
-            Instead we render the current step and conditionally hide others.
-            For simplicity here we re-render ConfigStep by remounting and rely
-            on the capture happening in the same tick as the Next click. */}
         <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-10">
           {step === 1 && (
             <TemplateStep
@@ -310,6 +385,7 @@ export default function SendCertApp() {
               emailConfig={emailConfig}
               onResetAll={resetAll}
               onResetAudience={resetAudience}
+              templateKind={templateKind}
             />
           )}
         </div>

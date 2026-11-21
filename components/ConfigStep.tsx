@@ -565,20 +565,16 @@ export default function ConfigStep({
               />
             </Field>
 
-            {/* Date field only appears in the Modern layout. Hiding it for
-                other templates avoids a dead input that the user types into
-                and sees no effect in the preview. */}
-            {templateId === 'modern' && (
-              <Field label="Date / issuance text">
-                <input
-                  type="text"
-                  value={content.dateText}
-                  onChange={(e) => updateContent('dateText', e.target.value)}
-                  placeholder="Date issued"
-                  className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                />
-              </Field>
-            )}
+            <Field label="Second signature caption">
+              <input
+                type="text"
+                value={content.dateText}
+                onChange={(e) => updateContent('dateText', e.target.value)}
+                placeholder="Date"
+                className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500">Leave empty to hide it.</p>
+            </Field>
 
             <Field label="Accent color">
               <div className="mt-1 flex items-center gap-3">

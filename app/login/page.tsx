@@ -48,7 +48,11 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: `${siteUrl}/auth/callback`,
+          // Carry ?next (e.g. /admin) through the magic link; the callback
+          // only accepts same-site paths.
+          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(
+            new URLSearchParams(window.location.search).get('next') ?? '/dashboard',
+          )}`,
         },
       });
       if (error) throw error;
