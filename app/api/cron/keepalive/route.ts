@@ -3,6 +3,7 @@ import {
   createServiceSupabaseClient,
   isSupabaseServiceConfigured,
 } from '@/lib/supabase';
+import { deleteExpiredDrafts } from '@/lib/aiDrafts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,5 +29,7 @@ export async function GET(req: NextRequest) {
     console.error('keepalive query failed:', error);
     return NextResponse.json({ ok: false }, { status: 500 });
   }
+  // Drafts from AI assistants hold recipient emails; drop them once expired.
+  await deleteExpiredDrafts();
   return NextResponse.json({ ok: true });
 }

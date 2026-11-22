@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
+import { LegalLinks } from '@/components/pages/DocShell';
 import { localizePath, tx, type Locale, type Tx } from '@/lib/i18n';
 
 // Question / Answer pairs rendered on the page AND serialized into the
@@ -251,6 +252,7 @@ export default function FaqPage({ locale }: { locale: Locale }) {
       <footer className="border-t border-gray-100 bg-gray-50 py-10">
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-6 text-center text-sm text-gray-500">
           <LanguageSwitcher locale={locale} enPath="/faq" className="!text-gray-500 hover:!text-gray-900" />
+          <LegalLinks locale={locale} />
           <p>© {new Date().getFullYear()} SendCert</p>
         </div>
       </footer>

@@ -12,6 +12,7 @@ import StudentsStep, { type Recipient } from '@/components/StudentsStep';
 import EmailStep, { type EmailConfig } from '@/components/EmailStep';
 import PreviewStep from '@/components/PreviewStep';
 import { PRESET_TEMPLATES } from '@/lib/templates';
+import type { AiDraft } from '@/lib/aiDrafts';
 import { isValidEmail } from '@/lib/validation';
 import {
   getDefaultContent,
@@ -108,10 +109,53 @@ function Wizard({ locale }: { locale: Locale }) {
   // empty initial state never overwrites it.
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  // Drafts prepared by an AI assistant through the MCP server arrive as
+  // /app?draft=<id> and take precedence over the browser autosave.
+  const [assistantDraft, setAssistantDraft] = useState<
+    { status: 'loaded'; recipients: number } | { status: 'expired' } | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
-    loadDraft(locale).then((draft) => {
+
+    function applyAssistantDraft(draft: AiDraft) {
+      const preset = PRESET_TEMPLATES.find((p) => p.id === draft.templateId) ?? PRESET_TEMPLATES[0];
+      setTemplateDataUrl(null);
+      setTemplateId(preset.id);
+      setRenderedTemplateDataUrl(null);
+      setTextConfig({
+        x: preset.defaultX,
+        y: preset.defaultY,
+        fontSize: preset.defaultFontSize,
+        color: preset.defaultColor,
+        fontFamily: preset.defaultFontFamily,
+      });
+      setContent(draft.content);
+      setExtraFields(draft.extraFields);
+      setRecipients(draft.recipients);
+      setEmailConfig(draft.emailConfig);
+      // Step 2 so the design is reviewed (and captured) before sending.
+      setStep(2);
+      setAssistantDraft({ status: 'loaded', recipients: draft.recipients.length });
+    }
+
+    async function restore() {
+      const draftId = new URLSearchParams(window.location.search).get('draft');
+      if (draftId) {
+        const fromAssistant = await fetch(`/api/drafts/${encodeURIComponent(draftId)}`, { cache: 'no-store' })
+          .then((r) => (r.ok ? (r.json() as Promise<AiDraft>) : null))
+          .catch(() => null);
+        if (cancelled) return;
+        if (fromAssistant) {
+          applyAssistantDraft(fromAssistant);
+          setDraftLoaded(true);
+          trackEvent('assistant_draft_opened', { recipients: fromAssistant.recipients.length });
+          return;
+        }
+        setAssistantDraft({ status: 'expired' });
+      }
+
+      const draft = await loadDraft(locale);
       if (cancelled) return;
       const knownTemplate =
         draft?.templateDataUrl ||
@@ -128,7 +172,9 @@ function Wizard({ locale }: { locale: Locale }) {
         setDraftRestored(true);
       }
       setDraftLoaded(true);
-    });
+    }
+
+    restore();
     return () => {
       cancelled = true;
     };
@@ -365,6 +411,37 @@ function Wizard({ locale }: { locale: Locale }) {
           <StepIndicator currentStep={step} />
         </div>
 
+        {assistantDraft?.status === 'loaded' && (
+          <div className="mb-4 rounded-lg border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-900">
+              {assistantDraft.recipients === 1
+                ? t(
+                    'Your AI assistant prepared this certificate for 1 recipient.',
+                    'Tu asistente de IA preparó este certificado para 1 destinatario.',
+                  )
+                : t(
+                    `Your AI assistant prepared these certificates for ${assistantDraft.recipients} recipients.`,
+                    `Tu asistente de IA preparó estos certificados para ${assistantDraft.recipients} destinatarios.`,
+                  )}
+            </p>
+            <p className="mt-0.5">
+              {t(
+                'Review the design, the recipients and the email. Nothing is sent until you click Send.',
+                'Revisa el diseño, los destinatarios y el correo. No se envía nada hasta que hagas clic en Enviar.',
+              )}
+            </p>
+          </div>
+        )}
+
+        {assistantDraft?.status === 'expired' && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {t(
+              'This draft is no longer available: drafts expire after 24 hours. Ask your AI assistant to create it again, or start here.',
+              'Este borrador ya no está disponible: los borradores vencen a las 24 horas. Pídele a tu asistente de IA que lo vuelva a crear o empieza aquí.',
+            )}
+          </div>
+        )}
+
         {draftRestored && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-100 bg-brand-50 px-4 py-2.5 text-sm text-gray-700">
             <span>
@@ -469,7 +546,15 @@ function Wizard({ locale }: { locale: Locale }) {
               'En los envíos sin cuenta nunca guardamos los correos de los destinatarios. Las páginas de verificación solo muestran el nombre, el certificado, quién lo emite y la fecha.',
             )}
           </span>
-          <span>© {new Date().getFullYear()} SendCert</span>
+          <span className="flex gap-4">
+            <Link href={localizePath('/privacy', locale)} className="hover:text-gray-700">
+              {t('Privacy', 'Privacidad')}
+            </Link>
+            <Link href={localizePath('/terms', locale)} className="hover:text-gray-700">
+              {t('Terms', 'Términos')}
+            </Link>
+            <span>© {new Date().getFullYear()} SendCert</span>
+          </span>
         </div>
       </footer>
     </>

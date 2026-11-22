@@ -24,6 +24,9 @@ export const LOCALE_TAG: Record<Locale, string> = { en: 'en-US', es: 'es' };
 // English path → Spanish path, for pages whose slug is translated.
 const ES_SLUGS: Record<string, string> = {
   '/for-organizations': '/para-organizaciones',
+  '/ai-assistants': '/asistentes-ia',
+  '/privacy': '/privacidad',
+  '/terms': '/terminos',
 };
 
 /**

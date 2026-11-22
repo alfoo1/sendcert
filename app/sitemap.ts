@@ -19,6 +19,9 @@ const STATIC_PAGES: StaticPage[] = [
   { enPath: '/for-organizations', changeFrequency: 'monthly', priority: 0.8 },
   { enPath: '/blog', changeFrequency: 'weekly', priority: 0.7 },
   { enPath: '/faq', changeFrequency: 'monthly', priority: 0.6 },
+  { enPath: '/ai-assistants', changeFrequency: 'monthly', priority: 0.6 },
+  { enPath: '/privacy', changeFrequency: 'yearly', priority: 0.2 },
+  { enPath: '/terms', changeFrequency: 'yearly', priority: 0.2 },
 ];
 
 function url(enPath: string, locale: Locale): string {

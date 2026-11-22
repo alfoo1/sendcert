@@ -123,8 +123,17 @@ export default function LandingPage({ locale }: { locale: Locale }) {
               <Link href={href('/faq')} className="hover:text-gray-900">
                 {tx(locale, { en: 'FAQ', es: 'Preguntas frecuentes' })}
               </Link>
+              <Link href={href('/ai-assistants')} className="hover:text-gray-900">
+                {tx(locale, { en: 'AI assistants', es: 'Asistentes de IA' })}
+              </Link>
               <Link href={href('/login')} className="hover:text-gray-900">
                 {tx(locale, { en: 'Sign in', es: 'Iniciar sesión' })}
+              </Link>
+              <Link href={href('/privacy')} className="hover:text-gray-900">
+                {tx(locale, { en: 'Privacy', es: 'Privacidad' })}
+              </Link>
+              <Link href={href('/terms')} className="hover:text-gray-900">
+                {tx(locale, { en: 'Terms', es: 'Términos' })}
               </Link>
               <LanguageSwitcher locale={locale} enPath="/" className="!text-gray-500 hover:!text-gray-900" />
             </nav>
