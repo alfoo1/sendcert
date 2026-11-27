@@ -9,6 +9,7 @@ import {
 import { PRESET_TEMPLATES } from '@/lib/templates';
 import DailyBarChart, { type DailyPoint } from '@/components/admin/DailyBarChart';
 import { recentEvents, type EventRow } from '@/lib/events';
+import { recentBlockedSends, type BlockedSendRow } from '@/lib/abuseGuard';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,7 +93,7 @@ async function loadData() {
   const supabase = createServiceSupabaseClient();
   const since = new Date(Date.now() - 365 * DAY_MS).toISOString();
   const since30 = new Date(Date.now() - 30 * DAY_MS).toISOString();
-  const [logs, users, feedback, waitlist, certs, certs30, shares, events] = await Promise.all([
+  const [logs, users, feedback, waitlist, certs, certs30, shares, events, blocked] = await Promise.all([
     supabase
       .from('send_log')
       .select('created_at, user_id, ip_hash, recipients, sent, failed, template')
@@ -125,6 +126,8 @@ async function loadData() {
       .limit(10000),
     // Empty until migration 0008 runs; never breaks the page.
     recentEvents(new Date(Date.now() - 7 * DAY_MS), 1000),
+    // Empty until migration 0011 runs.
+    recentBlockedSends(100),
   ]);
   const error =
     logs.error ?? users.error ?? feedback.error ?? waitlist.error ?? certs.error ?? certs30.error;
@@ -139,6 +142,7 @@ async function loadData() {
     // Missing table (migration 0005 not run yet) shouldn't break the page.
     shares30: (shares.error ? [] : shares.data ?? []) as { kind: string; source: string | null }[],
     events: events as EventRow[],
+    blocked: blocked as BlockedSendRow[],
   };
 }
 
@@ -237,6 +241,8 @@ export default async function AdminPage() {
       </section>
 
       <ProblemsSection events={data.events} />
+
+      <BlockedSendsSection rows={data.blocked} emails={new Map(data.users.map((u) => [u.id, u.email ?? u.id]))} />
 
       <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -471,6 +477,56 @@ function ProblemsSection({ events }: { events: EventRow[] }) {
                 <span className="ml-auto text-xs text-gray-500">{formatDateTime(e.created_at)}</span>
               </div>
               {e.message && <p className="mt-1 break-words text-gray-600">{e.message}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** What the abuse filter stopped, with the full text (table blocked_sends, kept 30 days). */
+function BlockedSendsSection({ rows, emails }: { rows: BlockedSendRow[]; emails: Map<string, string> }) {
+  return (
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="font-semibold text-gray-900">Blocked sends, last 30 days</h2>
+      <p className="text-xs text-gray-500">
+        Emails the phishing filter stopped, with what they said. Nothing here was sent. Recipient addresses
+        aren&apos;t stored; rows are deleted after 30 days. To stop an account, ban it in Supabase (Authentication →
+        Users).
+      </p>
+      {rows.length === 0 ? (
+        <p className="mt-4 text-sm text-gray-500">Nothing blocked.</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-gray-100 text-sm">
+          {rows.map((r, i) => (
+            <li key={`${r.created_at}-${i}`} className="py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-700">{r.code}</span>
+                <span className="font-medium text-gray-900">
+                  {r.user_id ? emails.get(r.user_id) ?? `account ${r.user_id.slice(0, 8)}` : `guest · ip ${r.ip_hash ?? '?'}`}
+                </span>
+                <span className="text-xs text-gray-500">{r.route}</span>
+                {r.recipients != null && (
+                  <span className="text-xs text-gray-500">
+                    {r.recipients} recipient{r.recipients === 1 ? '' : 's'}
+                  </span>
+                )}
+                <span className="ml-auto text-xs text-gray-500">{formatDateTime(r.created_at)}</span>
+              </div>
+              {r.match && <p className="mt-1 text-xs text-gray-500">Matched: {r.match}</p>}
+              {r.subject && <p className="mt-1 break-words font-medium text-gray-800">{r.subject}</p>}
+              {r.content && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs font-medium text-blue-700">Show the text</summary>
+                  <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 font-sans text-xs text-gray-700">
+                    {r.content}
+                  </pre>
+                </details>
+              )}
+              {r.names && r.names.length > 0 && (
+                <p className="mt-1 break-words text-xs text-gray-500">Names: {r.names.join(', ')}</p>
+              )}
             </li>
           ))}
         </ul>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkMessageContent, findLinkHosts, lookalikeBrand, normalizeText } from '@/lib/abuse';
+import { checkMessageContent, findLinkHosts, isTrustedLinkHost, lookalikeBrand, normalizeText } from '@/lib/abuse';
 
 // The phishing sent through SendCert on 2026-11-27, as it arrived (Unicode
 // "bold" letters to dodge keyword filters).
@@ -14,8 +14,9 @@ https://poshmark.keningjiaju.com/260853405
 
 𝗕𝗲𝘀𝘁 𝗿𝗲𝗴𝗮𝗿𝗱𝘀, 𝗧𝗵𝗲 𝗦𝘂𝗽𝗽𝗼𝗿𝘁 𝘁𝗲𝗮𝗺 𝟐𝟎𝟐𝟔`;
 
-const account = { allowLinks: true };
-const guest = { allowLinks: false };
+const account = { links: 'any' as const };
+const guest = { links: 'none' as const };
+const newAccount = { links: 'trusted' as const };
 
 describe('normalizeText', () => {
   it('folds Unicode bold letters and drops invisible characters', () => {
@@ -88,6 +89,48 @@ describe('checkMessageContent: lets normal certificate emails through', () => {
       account,
     );
     expect(r).toEqual({ ok: true });
+  });
+});
+
+describe('checkMessageContent: new accounts (first week)', () => {
+  it('blocks the 2026-11-27 evening attempts from a throwaway account', () => {
+    // Neutral wording plus the attacker's own domain: passes the phishing
+    // rules, stopped only because the account is new.
+    const r = checkMessageContent(['Important Info! {{name}}', 'Hi {{name}}, please review the details here: https://keningjiaju.com/260853405'], newAccount);
+    expect(r).toMatchObject({ ok: false, code: 'untrusted_link', match: 'keningjiaju.com' });
+    expect(checkMessageContent(['Info', 'See keningjiaju.com/123'], newAccount)).toMatchObject({ ok: false, code: 'untrusted_link' });
+  });
+
+  it('allows links to well-known sites, .edu and .gob', () => {
+    const r = checkMessageContent(
+      [
+        'Your certificate',
+        [
+          'Survey: https://forms.gle/abc123 and https://docs.google.com/forms/d/xyz',
+          'Recording: https://youtu.be/dQw4w9WgXcQ',
+          'Next class: https://us02web.zoom.us/j/123456',
+          'Profile: https://www.linkedin.com/company/acme',
+          'Campus: https://campus.uba.edu.ar/curso and https://www.argentina.gob.ar/educacion',
+          'Verify: https://www.sendcert.org/verify/ABC123',
+        ].join('\n'),
+      ],
+      newAccount,
+    );
+    expect(r).toEqual({ ok: true });
+  });
+
+  it('still applies the phishing rules to trusted links', () => {
+    const r = checkMessageContent(['Hi', 'Verify your account: https://docs.google.com/forms/d/xyz'], newAccount);
+    expect(r).toMatchObject({ ok: false, code: 'phishing' });
+  });
+
+  it('isTrustedLinkHost only trusts the real domains', () => {
+    for (const host of ['google.com', 'docs.google.com', 'zoom.us', 'mit.edu', 'unam.edu.mx', 'ox.ac.uk', 'argentina.gob.ar']) {
+      expect(isTrustedLinkHost(host), host).toBe(true);
+    }
+    for (const host of ['google.com.evil.top', 'notgoogle.com', 'zoom.us-login.xyz', 'edu.example.com', 'keningjiaju.com', 'gob.example.net']) {
+      expect(isTrustedLinkHost(host), host).toBe(false);
+    }
   });
 });
 

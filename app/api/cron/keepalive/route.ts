@@ -7,6 +7,7 @@ import { deleteExpiredDrafts } from '@/lib/aiDrafts';
 import { deleteExpiredEvents } from '@/lib/eventMode/store';
 import { buildDigest, deleteOldEvents, recentEvents } from '@/lib/events';
 import { notifyOwner } from '@/lib/notify';
+import { deleteOldBlockedSends } from '@/lib/abuseGuard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,8 @@ export async function GET(req: NextRequest) {
   // Drafts from AI assistants hold recipient emails; drop them once expired.
   await deleteExpiredDrafts();
   await deleteOldEvents(90);
+  // Text of blocked (abusive) sends is only kept 30 days.
+  await deleteOldBlockedSends();
   // Events and their invitees are deleted 12 months after the event.
   await deleteExpiredEvents();
 

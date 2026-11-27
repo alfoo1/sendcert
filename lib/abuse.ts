@@ -7,6 +7,8 @@
 // certificate email doesn't need links (we add the verification link
 // ourselves), so:
 //   - guests: no links at all;
+//   - accounts in their first week: only links to well-known sites (the
+//     same attacker came back that evening with a throwaway account);
 //   - everyone: no link shorteners, no links to bare IPs, no links whose
 //     host pretends to be a known brand, and no classic phishing wording.
 //
@@ -14,7 +16,10 @@
 // "Poshmark", invisible characters are dropped, and keyword checks also
 // read common digit swaps like "P0sh").
 
-export type AbuseCode = 'link' | 'shortener' | 'ip_link' | 'lookalike' | 'phishing';
+export type AbuseCode = 'link' | 'untrusted_link' | 'shortener' | 'ip_link' | 'lookalike' | 'phishing';
+
+/** Which links the sender may include: none (guests), well-known sites only (new accounts), or any. */
+export type LinkPolicy = 'none' | 'trusted' | 'any';
 
 export type ContentCheck =
   | { ok: true }
@@ -182,11 +187,42 @@ export function lookalikeBrand(host: string): string | null {
   return null;
 }
 
+// Sites a new account may link to: what teachers and event organizers
+// actually share (forms, video calls, recordings, slides, profiles).
+// Subdomains count too (docs.google.com, us02web.zoom.us).
+const TRUSTED_LINK_SITES = new Set([
+  'sendcert.org',
+  'google.com', 'forms.gle', 'youtube.com', 'youtu.be', 'g.co',
+  'zoom.us', 'zoom.com', 'meet.jit.si', 'webex.com', 'gotomeeting.com',
+  'microsoft.com', 'office.com', 'live.com', 'microsoftstream.com',
+  'linkedin.com', 'facebook.com', 'instagram.com', 'x.com', 'twitter.com', 'tiktok.com', 'wa.me', 'whatsapp.com',
+  'canva.com', 'canva.site', 'notion.so', 'notion.site', 'eventbrite.com', 'meetup.com', 'lu.ma', 'luma.com', 'calendly.com',
+  'github.com', 'gitlab.com', 'wikipedia.org', 'coursera.org', 'udemy.com', 'edx.org', 'khanacademy.org', 'kahoot.it', 'kahoot.com',
+  'mentimeter.com', 'menti.com', 'slido.com', 'typeform.com', 'surveymonkey.com', 'vimeo.com', 'spotify.com', 'medium.com',
+  'substack.com', 'moodle.org', 'classroom.google.com', 'credly.com', 'figma.com', 'miro.com', 'padlet.com', 'genial.ly',
+]);
+// Education and government domains (.edu, .edu.ar, .gob.mx, .ac.uk...)
+// can't be registered by just anyone.
+const TRUSTED_SUFFIXES = new Set(['edu', 'gov', 'gob', 'mil', 'ac']);
+
+export function isTrustedLinkHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/\.$/, '');
+  const labels = h.split('.');
+  for (let i = 0; i < labels.length - 1; i++) {
+    if (TRUSTED_LINK_SITES.has(labels.slice(i).join('.'))) return true;
+  }
+  const tld = labels[labels.length - 1];
+  const second = labels[labels.length - 2];
+  if (labels.length >= 2 && ['edu', 'gov', 'mil'].includes(tld)) return true;
+  if (labels.length >= 3 && tld.length === 2 && TRUSTED_SUFFIXES.has(second)) return true;
+  return false;
+}
+
 /**
  * Checks the subject and body someone wrote for an email we'll send.
- * `allowLinks` is false for guests.
+ * `links` is 'none' for guests and 'trusted' for accounts in their first week.
  */
-export function checkMessageContent(parts: (string | null | undefined)[], opts: { allowLinks: boolean }): ContentCheck {
+export function checkMessageContent(parts: (string | null | undefined)[], opts: { links: LinkPolicy }): ContentCheck {
   const text = normalizeText(parts.filter(Boolean).join('\n'));
   if (!text.trim()) return { ok: true };
 
@@ -197,7 +233,11 @@ export function checkMessageContent(parts: (string | null | undefined)[], opts: 
     const brand = lookalikeBrand(host);
     if (brand) return { ok: false, code: 'lookalike', match: brand };
   }
-  if (!opts.allowLinks && hosts.length > 0) return { ok: false, code: 'link', match: hosts[0] };
+  if (opts.links === 'none' && hosts.length > 0) return { ok: false, code: 'link', match: hosts[0] };
+  if (opts.links === 'trusted') {
+    const untrusted = hosts.find((h) => !isTrustedLinkHost(h));
+    if (untrusted) return { ok: false, code: 'untrusted_link', match: untrusted };
+  }
 
   const plain = deLeet(text);
   for (const re of PHISHING_PATTERNS) {
@@ -213,6 +253,11 @@ export function blockedMessage(check: { code: AbuseCode; match: string }, locale
     return locale === 'es'
       ? `Sin cuenta no se pueden incluir links en el correo ni en los nombres (encontramos "${check.match}"). El link de verificación del certificado lo agregamos nosotros. Crea una cuenta gratis si necesitas incluir un link.`
       : `Links aren't allowed in the email or the names when sending without an account (we found "${check.match}"). We add the certificate's verification link for you. Create a free account if you need to include a link.`;
+  }
+  if (check.code === 'untrusted_link') {
+    return locale === 'es'
+      ? `Para evitar estafas, durante su primera semana las cuentas nuevas solo pueden incluir links a sitios conocidos (Google, Zoom, YouTube, Microsoft, LinkedIn, Canva, sitios .edu o .gob…). Quita el link a "${check.match}" o compártelo desde Google Drive. Si lo necesitas ya, escríbenos desde la página de contacto.`
+      : `To prevent scams, during their first week new accounts can only include links to well-known sites (Google, Zoom, YouTube, Microsoft, LinkedIn, Canva, .edu or .gov sites…). Remove the link to "${check.match}" or share it through Google Drive. If you need it now, contact us.`;
   }
   return locale === 'es'
     ? 'No podemos enviar este mensaje: se parece a un correo de phishing o usa links que no permitimos (acortadores, direcciones IP o sitios que imitan a otra marca). Si es un error, escríbenos desde la página de contacto.'

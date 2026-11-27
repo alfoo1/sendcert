@@ -97,6 +97,14 @@ function PrivacyEn() {
         the error message and the browser type) so we can fix it. These logs never include names or email addresses.
       </p>
 
+      <h3>Messages blocked as possible abuse</h3>
+      <p>
+        To protect recipients, we automatically check the text of every email before sending it. If a message is
+        blocked as possible phishing or abuse, we keep its text, the first recipient names, the rule it triggered and
+        the account (or the salted IP hash, for guests) for 30 days, so we can review it. We don&apos;t keep the
+        recipients&apos; email addresses. Messages that are sent normally are not stored this way.
+      </p>
+
       <h2>How we use data</h2>
       <p>
         Only to provide the service: generating and delivering certificates, running verification pages, applying
@@ -116,6 +124,7 @@ function PrivacyEn() {
       <ul>
         <li>AI assistant drafts: 24 hours.</li>
         <li>Error logs: 90 days.</li>
+        <li>Messages blocked as possible abuse: 30 days.</li>
         <li>Events and their invitees&apos; answers: 12 months after the event.</li>
         <li>Verification records: as long as the certificate should remain verifiable, or until removal is requested.</li>
         <li>Accounts and their send history: until you ask us to delete them.</li>
@@ -221,6 +230,15 @@ function PrivacyEs() {
         nombres ni correos.
       </p>
 
+      <h3>Mensajes bloqueados por posible abuso</h3>
+      <p>
+        Para proteger a los destinatarios, revisamos automáticamente el texto de cada correo antes de enviarlo. Si un
+        mensaje se bloquea por posible phishing o abuso, guardamos su texto, los primeros nombres de destinatarios, la
+        regla que lo detuvo y la cuenta (o el hash con sal de la IP, en el caso de invitados) durante 30 días, para
+        poder revisarlo. No guardamos los correos de los destinatarios. Los mensajes que se envían normalmente no se
+        guardan de esta forma.
+      </p>
+
       <h2>Para qué usamos los datos</h2>
       <p>
         Solo para prestar el servicio: generar y enviar certificados, mantener las páginas de verificación, aplicar los
@@ -241,6 +259,7 @@ function PrivacyEs() {
       <ul>
         <li>Borradores de asistentes de IA: 24 horas.</li>
         <li>Registros de errores: 90 días.</li>
+        <li>Mensajes bloqueados por posible abuso: 30 días.</li>
         <li>Eventos y las respuestas de sus invitados: 12 meses después del evento.</li>
         <li>
           Registros de verificación: mientras el certificado deba poder verificarse, o hasta que se pida eliminarlo.
