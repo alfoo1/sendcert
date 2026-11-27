@@ -4,6 +4,7 @@ import {
   isSupabaseServiceConfigured,
 } from '@/lib/supabase';
 import { deleteExpiredDrafts } from '@/lib/aiDrafts';
+import { deleteExpiredEvents } from '@/lib/eventMode/store';
 import { buildDigest, deleteOldEvents, recentEvents } from '@/lib/events';
 import { notifyOwner } from '@/lib/notify';
 
@@ -34,6 +35,8 @@ export async function GET(req: NextRequest) {
   // Drafts from AI assistants hold recipient emails; drop them once expired.
   await deleteExpiredDrafts();
   await deleteOldEvents(90);
+  // Events and their invitees are deleted 12 months after the event.
+  await deleteExpiredEvents();
 
   // Daily email to the owner with the last 24 h of problems and sign-ins,
   // so failures users hit don't go unnoticed. Skipped on quiet days.
