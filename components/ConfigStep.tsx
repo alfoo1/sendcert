@@ -261,8 +261,8 @@ export default function ConfigStep({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-      {/* ---------- LEFT: live preview ---------- */}
-      <div>
+      {/* ---------- LEFT: live preview (stays in view while editing on the right) ---------- */}
+      <div className="lg:sticky lg:top-4 lg:self-start">
         <h2 className="text-2xl font-bold text-gray-900">
           {isBuiltInTemplate
             ? t({ en: 'Customize your certificate', es: 'Personaliza tu certificado' })

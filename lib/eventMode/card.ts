@@ -21,5 +21,6 @@ export function shareCardEvent(e: EventRecord, locale: Locale): ShareCardEvent {
     logoUrl: e.logoUrl,
     partnerLogoUrls: e.partnerLogos.map((p) => p.url),
     design,
+    custom: !design && sc.level === 1 ? sc.custom ?? null : null,
   };
 }

@@ -3,7 +3,7 @@ import { PRESET_TEMPLATES } from '@/lib/templates';
 import { isValidEmail } from '@/lib/validation';
 import { isValidTimeZone } from '@/lib/eventMode/format';
 import { clampBox, clampCircle } from '@/lib/shareCard/geometry';
-import type { EventInput, PartnerLogo, ShareCardSettings, TextZone } from '@/lib/eventMode/types';
+import type { CardLayout, EventInput, PartnerLogo, ShareCardCustom, ShareCardSettings, TextZone } from '@/lib/eventMode/types';
 
 // Validation of what the organizer sends for an event. Returns a clean
 // EventInput or the first problem, in plain words for the form.
@@ -50,6 +50,7 @@ function shareCard(v: unknown): ShareCardSettings {
   if (!v || typeof v !== 'object') return { level: 0 };
   const s = v as Record<string, unknown>;
   const level = s.level === 2 ? 2 : s.level === 1 ? 1 : 0;
+  if (level === 1) return { level: 1, custom: parseCustom(s.custom) };
   if (level !== 2) return { level };
   const bg = s.background as Record<string, unknown> | undefined;
   const zones = s.zones as Record<string, Record<string, unknown>> | undefined;
@@ -69,6 +70,23 @@ function shareCard(v: unknown): ShareCardSettings {
       photo: clampCircle({ cx: num(zones.photo.cx), cy: num(zones.photo.cy), r: num(zones.photo.r) }),
       text: zoneText,
     },
+  };
+}
+
+const LAYOUTS: CardLayout[] = ['centered', 'split', 'hero', 'minimal'];
+
+/** Level 1 options; anything missing or invalid falls back to the default. */
+export function parseCustom(v: unknown): ShareCardCustom {
+  const c = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  const headline = typeof c.headline === 'string' ? c.headline.trim().slice(0, 28) : '';
+  return {
+    layout: LAYOUTS.includes(c.layout as CardLayout) ? (c.layout as CardLayout) : 'centered',
+    ...(typeof c.accent === 'string' && /^#[0-9a-f]{6}$/i.test(c.accent) ? { accent: c.accent } : {}),
+    ...(c.tone === 'light' || c.tone === 'dark' ? { tone: c.tone } : {}),
+    ...(headline ? { headline } : {}),
+    showRole: c.showRole !== false,
+    showHashtag: c.showHashtag !== false,
+    showPartners: c.showPartners !== false,
   };
 }
 

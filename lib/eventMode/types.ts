@@ -10,10 +10,27 @@ export type TextZone = RelBox & {
   align: 'left' | 'center' | 'right';
 };
 
+export type CardLayout = 'centered' | 'split' | 'hero' | 'minimal';
+
+/** Level 1: the automatic card, customized without breaking its design. */
+export type ShareCardCustom = {
+  layout: CardLayout;
+  // Overrides the event's accent color on the card.
+  accent?: string;
+  // Background tone; undefined = what the style uses.
+  tone?: 'light' | 'dark';
+  // Label on the card instead of "I'M ATTENDING".
+  headline?: string;
+  showRole: boolean;
+  showHashtag: boolean;
+  showPartners: boolean;
+};
+
 /** Share card settings stored on the event (events.share_card). */
 export type ShareCardSettings = {
-  // 0 = auto from event data, 1 = customized template (PR B), 2 = own background.
+  // 0 = automatic from the event, 1 = customized (layout, colors, texts), 2 = own background.
   level?: 0 | 1 | 2;
+  custom?: ShareCardCustom | null;
   // Level 2: the organizer's background and the two zones on it.
   background?: { url: string; w: number; h: number } | null;
   zones?: { photo: RelCircle; text: TextZone } | null;

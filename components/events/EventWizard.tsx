@@ -158,6 +158,7 @@ function Wizard({ locale, ownerEmail }: { locale: Locale; ownerEmail: string | n
               zones: details.shareCard.zones,
             }
           : null,
+      custom: details.shareCard.level === 1 ? details.shareCard.custom ?? null : null,
     }),
     [record, details.shareCard, locale],
   );
@@ -313,7 +314,7 @@ function Wizard({ locale, ownerEmail }: { locale: Locale; ownerEmail: string | n
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block text-sm sm:col-span-2">
                       <span className="font-medium text-gray-700">{t('Event name', 'Nombre del evento')} *</span>
-                      <input value={details.name} onChange={(e) => set('name', e.target.value)} maxLength={150} className={input} placeholder="GovCon 360" />
+                      <input value={details.name} onChange={(e) => set('name', e.target.value)} maxLength={150} className={input} placeholder={t('e.g. Spring Leadership Summit', 'Ej.: Encuentro de Innovación 2026')} />
                     </label>
                     <label className="block text-sm">
                       <span className="font-medium text-gray-700">{t('Date', 'Fecha')}</span>
@@ -360,7 +361,7 @@ function Wizard({ locale, ownerEmail }: { locale: Locale; ownerEmail: string | n
                         </label>
                         <label className="block text-sm">
                           <span className="text-gray-700">Hashtag</span>
-                          <input value={details.hashtag} onChange={(e) => set('hashtag', e.target.value)} maxLength={60} className={input} placeholder="#GovCon360" />
+                          <input value={details.hashtag} onChange={(e) => set('hashtag', e.target.value)} maxLength={60} className={input} placeholder={t('#LeadershipSummit', '#Innovacion2026')} />
                         </label>
                         <label className="block text-sm">
                           <span className="text-gray-700">{t('Replies go to', 'Las respuestas van a')}</span>

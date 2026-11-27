@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { OUTPUT_SIZES, type OutputFormat } from '@/lib/shareCard/geometry';
 import {
   drawShareCard,
+  layoutHasPhoto,
   loadImage,
   photoCircle,
   renderShareCardBlob,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/shareCard/render';
 import { linkedInComposeUrl } from '@/lib/eventMode/format';
 import { tx, type Locale } from '@/lib/i18n';
+import type { ShareCardCustom } from '@/lib/eventMode/types';
 
 export type ShareCardEvent = {
   name: string;
@@ -26,6 +28,8 @@ export type ShareCardEvent = {
   logoUrl: string | null;
   partnerLogoUrls: string[];
   design: { backgroundUrl: string; bgSize: { w: number; h: number }; zones: CustomDesign['zones'] } | null;
+  // Level 1 customization of the automatic card.
+  custom?: ShareCardCustom | null;
 };
 
 /**
@@ -93,24 +97,39 @@ export default function ShareCardMaker({
     [event.design],
   );
 
+  const custom = event.design ? null : event.custom ?? null;
+  const showRole = custom?.showRole !== false;
+  const hasPhoto = layoutHasPhoto(custom?.layout);
+
   const content: CardContent = useMemo(
     () => ({
       headline:
-        phase === 'before' ? t("I'M ATTENDING", 'VOY A ASISTIR') : t('I ATTENDED', 'ASISTÍ'),
+        phase === 'before'
+          ? (custom?.headline?.toUpperCase() ?? t("I'M ATTENDING", 'VOY A ASISTIR'))
+          : t('I ATTENDED', 'ASISTÍ'),
       eventName: event.name,
       dateLine: event.dateLine,
       placeLine: event.placeLine ?? null,
       organizer: event.organizer,
-      hashtag: event.hashtag,
+      hashtag: custom?.showHashtag === false ? null : event.hashtag,
       personName: name.trim() || t('Your name', 'Tu nombre'),
-      personTitle: title.trim() || null,
-      accent: event.accent,
+      personTitle: showRole ? title.trim() || null : null,
+      accent: custom?.accent ?? event.accent,
       style: event.style,
       footer: 'sendcert.org',
+      layout: custom?.layout,
+      tone: custom?.tone,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [phase, event, name, title, locale],
+    [phase, event, name, title, locale, custom, showRole],
   );
+
+  // Partner logos can be hidden on the customized card.
+  const drawImages: CardImages = useMemo(
+    () => (custom?.showPartners === false ? { ...images, partners: [] } : images),
+    [images, custom?.showPartners],
+  );
+  const drawPhoto = hasPhoto ? photo : null;
 
   const size = OUTPUT_SIZES[format];
 
@@ -119,8 +138,8 @@ export default function ShareCardMaker({
     if (!canvas) return;
     canvas.width = size.w;
     canvas.height = size.h;
-    drawShareCard(canvas, content, images, photo, design);
-  }, [content, images, photo, design, size]);
+    drawShareCard(canvas, content, drawImages, drawPhoto, design);
+  }, [content, drawImages, drawPhoto, design, size]);
 
   function onPhotoFile(file: File | undefined) {
     if (!file) return;
@@ -142,8 +161,8 @@ export default function ShareCardMaker({
   function onPointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!photo) return;
     const p = toCanvas(e);
-    const c = photoCircle(size, design);
-    if (Math.hypot(p.x - c.cx, p.y - c.cy) > c.r) return;
+    const c = photoCircle(size, design, custom?.layout);
+    if (!c || Math.hypot(p.x - c.cx, p.y - c.cy) > c.r) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { x: p.x, y: p.y, ox: photo.offsetX, oy: photo.offsetY };
   }
@@ -151,7 +170,9 @@ export default function ShareCardMaker({
   function onPointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
     if (!drag.current || !photo) return;
     const p = toCanvas(e);
-    const { r } = photoCircle(size, design);
+    const circle = photoCircle(size, design, custom?.layout);
+    if (!circle) return;
+    const { r } = circle;
     const limit = photo.zoom;
     setPhoto({
       ...photo,
@@ -167,7 +188,7 @@ export default function ShareCardMaker({
   async function download(f: OutputFormat) {
     setBusy(true);
     try {
-      const blob = await renderShareCardBlob(OUTPUT_SIZES[f], content, images, photo, design);
+      const blob = await renderShareCardBlob(OUTPUT_SIZES[f], content, drawImages, drawPhoto, design);
       if (!blob) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -185,7 +206,7 @@ export default function ShareCardMaker({
   async function shareImage() {
     setBusy(true);
     try {
-      const blob = await renderShareCardBlob(OUTPUT_SIZES.portrait, content, images, photo, design);
+      const blob = await renderShareCardBlob(OUTPUT_SIZES.portrait, content, drawImages, drawPhoto, design);
       if (!blob) return;
       const file = new File([blob], `${fileBase}.png`, { type: 'image/png' });
       await navigator.share({ files: [file], text: postText });
@@ -235,13 +256,16 @@ export default function ShareCardMaker({
             <span className="font-medium text-gray-700">{t('Name on the card', 'Nombre en la tarjeta')}</span>
             <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2" />
           </label>
-          <label className="block text-sm">
-            <span className="font-medium text-gray-700">
-              {t('Role or company', 'Cargo o empresa')} <span className="font-normal text-gray-400">{t('(optional)', '(opcional)')}</span>
-            </span>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2" />
-          </label>
+          {showRole && (
+            <label className="block text-sm">
+              <span className="font-medium text-gray-700">
+                {t('Role or company', 'Cargo o empresa')} <span className="font-normal text-gray-400">{t('(optional)', '(opcional)')}</span>
+              </span>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2" />
+            </label>
+          )}
 
+          {hasPhoto && (
           <div className="rounded-lg border border-gray-200 p-3 text-sm">
             {photo ? (
               <div className="space-y-2">
@@ -273,6 +297,7 @@ export default function ShareCardMaker({
               🔒 {t('Your photo stays on this device. It is never uploaded.', 'Tu foto se queda en este dispositivo. Nunca se sube.')}
             </p>
           </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {canShareFiles && (

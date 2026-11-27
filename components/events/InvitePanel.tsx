@@ -18,7 +18,7 @@ type Plan = {
 
 /**
  * "Send invitations by email" through SendCert (optional; the default for
- * GovCon-style events is exporting links). Says up front how many go out
+ * some events is exporting links). Says up front how many go out
  * today and how many wait for tomorrow; clicking again resumes.
  */
 export default function InvitePanel({ locale, eventId }: { locale: Locale; eventId: string }) {
