@@ -8,6 +8,9 @@ import { countDevSends, remainingToday } from '@/lib/eventMode/dailyCap';
 import { createTransporter, loadSmtpConfigFromEnv, sendMail } from '@/lib/mail';
 import { consumeUserQuota, logSend, USER_LIMIT } from '@/lib/quota';
 import { errorMessage, logEvent } from '@/lib/events';
+import { screenSend } from '@/lib/abuseGuard';
+import { getClientIp } from '@/lib/rateLimit';
+import { hashIp } from '@/lib/quota';
 import type { EventRecipient, EventRecord } from '@/lib/eventMode/types';
 
 export const runtime = 'nodejs';
@@ -77,6 +80,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
+  // Same phishing filter as certificate emails, over everything the
+  // organizer wrote that ends up in the invite.
+  const blocked = await screenSend({
+    route: '/api/events/[id]/invites',
+    userId: owner.id,
+    ipHash: hashIp(getClientIp(req)),
+    locale: event.locale,
+    texts: [subject, body, event.name, event.organizerName, event.venue, event.address],
+    recipients: undefined,
+    subject,
+  });
+  if (blocked) return NextResponse.json({ error: blocked, blocked: true }, { status: 400 });
+
   // Remember the message for next time (and for the dashboard).
   event = (await updateEvent(owner.id, event.id, { ...event, inviteSubject: subject, inviteBody: body })) ?? event;
 
@@ -87,6 +103,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const batch = pendingOf(people).slice(0, before.now);
+  const badName = await screenSend({
+    route: '/api/events/[id]/invites',
+    userId: owner.id,
+    ipHash: hashIp(getClientIp(req)),
+    locale: event.locale,
+    texts: [],
+    names: batch.map((p) => p.name),
+    recipients: batch.length,
+    subject,
+  });
+  if (badName) return NextResponse.json({ error: badName, blocked: true }, { status: 400 });
   const quota = await consumeUserQuota(owner.id, batch.length);
   if (!quota.allowed) {
     return NextResponse.json({ error: `You've reached the ${USER_LIMIT}-email limit for this month.` }, { status: 429 });

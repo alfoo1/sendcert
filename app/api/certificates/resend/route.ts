@@ -12,6 +12,9 @@ import { createServiceSupabaseClient, isSupabaseServiceConfigured } from '@/lib/
 import { getLoggedInUser } from '@/lib/session';
 import { consumeUserQuota, logSend, USER_LIMIT } from '@/lib/quota';
 import { errorMessage, logEvent } from '@/lib/events';
+import { screenSend } from '@/lib/abuseGuard';
+import { getClientIp } from '@/lib/rateLimit';
+import { hashIp } from '@/lib/quota';
 import { isValidEmail } from '@/lib/validation';
 import { isLocale, tx, type Locale } from '@/lib/i18n';
 import type { TextOverlay } from '@/lib/certificates';
@@ -73,6 +76,18 @@ export async function POST(req: NextRequest) {
   const email = typeof body.email === 'string' && body.email.trim() ? body.email.trim() : ((cert.recipient_email as string | null) ?? '');
   if (name.length > 120) return NextResponse.json({ error: t('The name is too long.', 'El nombre es demasiado largo.') }, { status: 400 });
   if (!isValidEmail(email)) return NextResponse.json({ error: t('Enter a valid email address.', 'Escribe un correo válido.') }, { status: 400 });
+
+  const blocked = await screenSend({
+    route: '/api/certificates/resend',
+    userId: user.id,
+    ipHash: hashIp(getClientIp(req)),
+    locale,
+    texts: [batch.email_subject, batch.email_body],
+    names: [name],
+    recipients: 1,
+    subject: batch.email_subject ?? undefined,
+  });
+  if (blocked) return NextResponse.json({ error: blocked, blocked: true }, { status: 400 });
 
   const quota = await consumeUserQuota(user.id, 1);
   if (!quota.allowed) {
