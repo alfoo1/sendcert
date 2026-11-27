@@ -10,7 +10,7 @@ export const PRIVACY_COPY = {
   },
 };
 
-const UPDATED = { en: 'Last updated: November 21, 2026', es: 'Última actualización: 21 de noviembre de 2026' };
+const UPDATED = { en: 'Last updated: November 26, 2026', es: 'Última actualización: 26 de noviembre de 2026' };
 
 /** /privacy and /es/privacidad. Keep both languages in sync. */
 export default function PrivacyPage({ locale }: { locale: Locale }) {
@@ -81,6 +81,12 @@ function PrivacyEn() {
         completed). Google Analytics uses cookies. We don&apos;t send names or email addresses to analytics tools.
       </p>
 
+      <h3>Error logs</h3>
+      <p>
+        When something fails, for example a sign-in link or an email delivery, we record technical details (the page,
+        the error message and the browser type) so we can fix it. These logs never include names or email addresses.
+      </p>
+
       <h2>How we use data</h2>
       <p>
         Only to provide the service: generating and delivering certificates, running verification pages, applying
@@ -99,6 +105,7 @@ function PrivacyEn() {
       <h2>How long we keep data</h2>
       <ul>
         <li>AI assistant drafts: 24 hours.</li>
+        <li>Error logs: 90 days.</li>
         <li>Verification records: as long as the certificate should remain verifiable, or until removal is requested.</li>
         <li>Accounts and their send history: until you ask us to delete them.</li>
       </ul>
@@ -185,6 +192,13 @@ function PrivacyEs() {
         completados). Google Analytics usa cookies. No enviamos nombres ni correos a las herramientas de analítica.
       </p>
 
+      <h3>Registros de errores</h3>
+      <p>
+        Cuando algo falla, por ejemplo un enlace de acceso o el envío de un correo, registramos datos técnicos (la
+        página, el mensaje de error y el tipo de navegador) para poder corregirlo. Estos registros nunca incluyen
+        nombres ni correos.
+      </p>
+
       <h2>Para qué usamos los datos</h2>
       <p>
         Solo para prestar el servicio: generar y enviar certificados, mantener las páginas de verificación, aplicar los
@@ -204,6 +218,7 @@ function PrivacyEs() {
       <h2>Cuánto tiempo guardamos los datos</h2>
       <ul>
         <li>Borradores de asistentes de IA: 24 horas.</li>
+        <li>Registros de errores: 90 días.</li>
         <li>
           Registros de verificación: mientras el certificado deba poder verificarse, o hasta que se pida eliminarlo.
         </li>

@@ -22,6 +22,7 @@ import {
 } from '@/lib/supabase';
 import { generateVerifyId } from '@/lib/verifyId';
 import { getLoggedInUserId } from '@/lib/session';
+import { errorMessage, logEvent } from '@/lib/events';
 import {
   GUEST_LIMIT,
   USER_LIMIT,
@@ -177,6 +178,7 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (err) {
+    await logEvent('send.failed', { message: errorMessage(err), path: '/api/send-emails', detail: { stage: 'template' } });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Template load failed.' },
       { status: 500 },
@@ -187,6 +189,7 @@ export async function POST(req: NextRequest) {
   try {
     smtpConfig = loadSmtpConfigFromEnv();
   } catch (err) {
+    await logEvent('send.failed', { message: errorMessage(err), path: '/api/send-emails', detail: { stage: 'smtp_config' } });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'SMTP not configured.' },
       { status: 500 },
@@ -207,6 +210,13 @@ export async function POST(req: NextRequest) {
     ? await consumeUserQuota(userId, validRecipients.length)
     : await consumeGuestQuota(ipHash, validRecipients.length);
   if (!quota.allowed) {
+    await logEvent('send.limit_reached', {
+      level: 'warn',
+      message: `${userId ? 'Account' : 'Guest'} tried to send ${validRecipients.length} with ${quota.used}/${quota.limit} used`,
+      path: '/api/send-emails',
+      detail: { tier: userId ? 'user' : 'guest', requested: validRecipients.length, used: quota.used, limit: quota.limit },
+      userId,
+    });
     const error = userId
       ? tx(locale, {
           en: `You've reached the ${USER_LIMIT}-certificate limit for this month.`,
@@ -303,6 +313,8 @@ export async function POST(req: NextRequest) {
 
       let sent = 0;
       let failed = 0;
+      // Distinct delivery errors, for the event log (app_events).
+      const failureReasons = new Set<string>();
 
       // Saves the verification record before the email goes out so the link
       // inside the email works immediately. Retries once on an ID collision.
@@ -373,6 +385,7 @@ export async function POST(req: NextRequest) {
           result = { email, name, status: 'ok', verifyId: verifyId ?? undefined };
         } catch (err) {
           failed += 1;
+          failureReasons.add(err instanceof Error ? err.message : 'Unknown error');
           // The certificate was never delivered, so its verify record must go.
           if (verifyId && supabaseService) {
             await supabaseService.from('certificates_issued').delete().eq('verify_id', verifyId);
@@ -390,6 +403,17 @@ export async function POST(req: NextRequest) {
           completed: i + 1,
           total: validRecipients.length,
           result,
+        });
+      }
+
+      if (failed > 0) {
+        const reasons = Array.from(failureReasons).slice(0, 3);
+        await logEvent('send.recipients_failed', {
+          level: sent === 0 ? 'error' : 'warn',
+          message: `${failed} of ${validRecipients.length} certificates failed: ${reasons.join(' | ')}`,
+          path: '/api/send-emails',
+          detail: { sent, failed, total: validRecipients.length },
+          userId,
         });
       }
 

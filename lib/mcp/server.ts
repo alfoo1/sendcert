@@ -22,6 +22,7 @@ import { certificateTitle, getCertificate, isExpired } from '@/lib/certificates'
 import { isLocale, type Locale } from '@/lib/i18n';
 import { PRESET_TEMPLATES, presetDescription, presetName } from '@/lib/templates';
 import { isValidEmail } from '@/lib/validation';
+import { errorMessage, logEvent } from '@/lib/events';
 
 // SendCert's MCP server: lets AI assistants (Claude, ChatGPT, Gemini and any
 // other MCP client) prepare certificates. Deliberately authless and unable to
@@ -328,7 +329,7 @@ async function createDraft(args: Args, client?: string): Promise<CallToolResult>
   try {
     id = await saveDraft(draft, client);
   } catch (err) {
-    console.error('MCP create_certificate_draft failed to save:', err);
+    await logEvent('mcp.draft_save_failed', { message: errorMessage(err), path: '/mcp' });
     if (err instanceof DraftStoreUnavailableError) {
       return toolError('SendCert could not save the draft right now. Please try again in a minute.');
     }
@@ -429,7 +430,11 @@ export function createMcpServer({ client }: { client?: string } = {}): Server {
       }
     } catch (err) {
       if (err instanceof InputError) return toolError(err.message);
-      console.error(`MCP tool ${request.params.name} failed:`, err);
+      await logEvent('mcp.tool_failed', {
+        message: errorMessage(err),
+        path: '/mcp',
+        detail: { tool: request.params.name },
+      });
       return toolError('SendCert hit an unexpected problem with this request. Please try again.');
     }
   });

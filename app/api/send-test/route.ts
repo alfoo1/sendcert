@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { errorMessage, logEvent } from '@/lib/events';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { generateCertificatePdf } from '@/lib/pdf';
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
     try {
       smtpConfig = loadSmtpConfigFromEnv();
     } catch (err) {
+      await logEvent('send.test_failed', { message: errorMessage(err), path: '/api/send-test', detail: { stage: 'smtp_config' } });
       return NextResponse.json(
         { error: err instanceof Error ? err.message : 'SMTP not configured.' },
         { status: 500 },
@@ -157,6 +159,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('Error in /api/send-test:', err);
     const message = err instanceof Error ? err.message : 'Unknown error';
+    await logEvent('send.test_failed', { message, path: '/api/send-test' });
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

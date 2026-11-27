@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { errorMessage, logEvent } from '@/lib/events';
 import { generateCertificatePdf } from '@/lib/pdf';
 import { PRESET_TEMPLATES } from '@/lib/templates';
 import { readFile } from 'node:fs/promises';
@@ -99,6 +100,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error('Certificate generation failed:', err);
+    await logEvent('preview.failed', { message: errorMessage(err), path: '/api/generate-certificate' });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Could not generate the certificate.' },
       { status: 500 },

@@ -1,5 +1,6 @@
 'use client';
 
+import { reportRequestFailure } from '@/lib/clientEvents';
 import { useEffect, useRef, useState } from 'react';
 import type { TextConfig } from './ConfigStep';
 import type { Recipient } from './StudentsStep';
@@ -210,9 +211,9 @@ export default function PreviewStep({
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(
-            data.error ?? t('Could not generate preview', 'No pudimos generar la vista previa'),
-          );
+          const message = data.error ?? t('Could not generate preview', 'No pudimos generar la vista previa');
+          reportRequestFailure('/api/generate-certificate', res.status, message);
+          throw new Error(message);
         }
         const blob = await res.blob();
         objectUrl = URL.createObjectURL(blob);
@@ -318,6 +319,7 @@ export default function PreviewStep({
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
+        reportRequestFailure('/api/send-emails', res.status, data.error ?? 'Sending failed (no body)');
         setSendState({
           phase: 'error',
           message: data.error ?? t('Sending failed.', 'No se pudo completar el envío.'),
@@ -380,6 +382,7 @@ export default function PreviewStep({
       });
       void total;
     } catch (err) {
+      reportRequestFailure('/api/send-emails', null, err instanceof Error ? err.message : String(err));
       setSendState({
         phase: 'error',
         message: err instanceof Error ? err.message : t('Unknown error.', 'Error desconocido.'),
@@ -422,6 +425,7 @@ export default function PreviewStep({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        reportRequestFailure('/api/send-test', res.status, data.error ?? 'Test send failed');
         setTestStatus({
           phase: 'error',
           message:

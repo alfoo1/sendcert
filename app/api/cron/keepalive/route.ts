@@ -4,6 +4,8 @@ import {
   isSupabaseServiceConfigured,
 } from '@/lib/supabase';
 import { deleteExpiredDrafts } from '@/lib/aiDrafts';
+import { buildDigest, deleteOldEvents, recentEvents } from '@/lib/events';
+import { notifyOwner } from '@/lib/notify';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,5 +33,23 @@ export async function GET(req: NextRequest) {
   }
   // Drafts from AI assistants hold recipient emails; drop them once expired.
   await deleteExpiredDrafts();
-  return NextResponse.json({ ok: true });
+  await deleteOldEvents(90);
+
+  // Daily email to the owner with the last 24 h of problems and sign-ins,
+  // so failures users hit don't go unnoticed. Skipped on quiet days.
+  // Only from Vercel's scheduler (or with the secret), so hitting the URL by
+  // hand can't flood the owner's inbox.
+  const fromScheduler =
+    Boolean(secret) || (req.headers.get('user-agent') ?? '').toLowerCase().startsWith('vercel-cron');
+  let digestSent = false;
+  const digest = fromScheduler ? buildDigest(await recentEvents(new Date(Date.now() - 86_400_000))) : null;
+  if (digest) {
+    try {
+      await notifyOwner(digest.subject, digest.body);
+      digestSent = true;
+    } catch (err) {
+      console.error('Daily digest email failed:', err);
+    }
+  }
+  return NextResponse.json({ ok: true, digestSent });
 }

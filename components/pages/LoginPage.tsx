@@ -8,6 +8,34 @@ import {
   createBrowserSupabaseClient,
   isSupabaseConfigured,
 } from '@/lib/supabase';
+import { reportEvent } from '@/lib/clientEvents';
+
+// Reasons the callback sends back as ?error= (see app/auth/callback/route.ts).
+const CALLBACK_ERRORS: Record<string, { en: string; es: string }> = {
+  other_browser: {
+    en: 'That sign-in link was opened in a different browser or device than the one where you requested it. Request a new link below and open it on this device.',
+    es: 'Ese enlace se abrió en un navegador o dispositivo distinto del que usaste para pedirlo. Pide un enlace nuevo aquí abajo y ábrelo en este dispositivo.',
+  },
+  link_expired: {
+    en: 'That sign-in link has expired or was already used. Request a new one below.',
+    es: 'Ese enlace de acceso venció o ya se usó. Pide uno nuevo aquí abajo.',
+  },
+  failed: {
+    en: "We couldn't sign you in with that link. Request a new one below.",
+    es: 'No pudimos iniciar tu sesión con ese enlace. Pide uno nuevo aquí abajo.',
+  },
+};
+
+/** Friendlier text for errors Supabase returns when requesting a link. */
+function requestErrorMessage(message: string, locale: Locale): string {
+  if (/after \d+ seconds|rate limit|too many/i.test(message)) {
+    return tx(locale, {
+      en: 'Too many sign-in requests. Wait a minute and try again.',
+      es: 'Demasiados pedidos de acceso. Espera un minuto y vuelve a intentarlo.',
+    });
+  }
+  return message;
+}
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -25,6 +53,13 @@ export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
   >({ phase: 'idle' });
 
   const supabaseConfigured = isSupabaseConfigured();
+
+  // Error sent back by /auth/callback when a sign-in link didn't work.
+  const [callbackError, setCallbackError] = useState<string | null>(null);
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get('error');
+    if (reason) setCallbackError(tx(locale, CALLBACK_ERRORS[reason] ?? CALLBACK_ERRORS.failed));
+  }, [locale]);
 
   // Surface missing Supabase config to the developer console in dev — but
   // never to the end user. A visible yellow box on the login page would be
@@ -59,12 +94,13 @@ export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
         },
       });
       if (error) throw error;
+      setCallbackError(null);
       setStatus({ phase: 'sent' });
+      reportEvent('auth.link_requested');
     } catch (err) {
-      setStatus({
-        phase: 'error',
-        message: err instanceof Error ? err.message : t({ en: 'Something went wrong.', es: 'Algo salió mal.' }),
-      });
+      const message = err instanceof Error ? err.message : t({ en: 'Something went wrong.', es: 'Algo salió mal.' });
+      reportEvent('auth.link_request_failed', message);
+      setStatus({ phase: 'error', message: requestErrorMessage(message, locale) });
     }
   }
 
@@ -92,6 +128,12 @@ export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
           })}
         </p>
 
+        {callbackError && status.phase !== 'sent' && (
+          <div role="alert" className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {callbackError}
+          </div>
+        )}
+
         {status.phase === 'sent' ? (
           <div className="mt-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
             <p className="font-semibold">{t({ en: 'Check your email', es: 'Revisa tu correo' })}</p>
@@ -101,6 +143,12 @@ export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
               {t({
                 en: "Click it from your inbox and you'll be signed in.",
                 es: 'Ábrelo desde tu bandeja de entrada y quedarás conectado.',
+              })}
+            </p>
+            <p className="mt-2 text-xs text-green-800">
+              {t({
+                en: "Can't find it? Check your spam folder. The link works once and expires in an hour.",
+                es: '¿No lo encuentras? Revisa la carpeta de spam. El enlace sirve una sola vez y vence en una hora.',
               })}
             </p>
           </div>

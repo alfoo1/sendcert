@@ -8,6 +8,7 @@ import {
 } from '@/lib/supabase';
 import { PRESET_TEMPLATES } from '@/lib/templates';
 import DailyBarChart, { type DailyPoint } from '@/components/admin/DailyBarChart';
+import { recentEvents, type EventRow } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,7 +92,7 @@ async function loadData() {
   const supabase = createServiceSupabaseClient();
   const since = new Date(Date.now() - 365 * DAY_MS).toISOString();
   const since30 = new Date(Date.now() - 30 * DAY_MS).toISOString();
-  const [logs, users, feedback, waitlist, certs, certs30, shares] = await Promise.all([
+  const [logs, users, feedback, waitlist, certs, certs30, shares, events] = await Promise.all([
     supabase
       .from('send_log')
       .select('created_at, user_id, ip_hash, recipients, sent, failed, template')
@@ -122,6 +123,8 @@ async function loadData() {
       .select('kind, source')
       .gte('created_at', since30)
       .limit(10000),
+    // Empty until migration 0008 runs; never breaks the page.
+    recentEvents(new Date(Date.now() - 7 * DAY_MS), 1000),
   ]);
   const error =
     logs.error ?? users.error ?? feedback.error ?? waitlist.error ?? certs.error ?? certs30.error;
@@ -135,6 +138,7 @@ async function loadData() {
     verified30: certs30.count ?? 0,
     // Missing table (migration 0005 not run yet) shouldn't break the page.
     shares30: (shares.error ? [] : shares.data ?? []) as { kind: string; source: string | null }[],
+    events: events as EventRow[],
   };
 }
 
@@ -231,6 +235,8 @@ export default async function AdminPage() {
           note={`${data.feedback.length} rating${data.feedback.length === 1 ? '' : 's'}`}
         />
       </section>
+
+      <ProblemsSection events={data.events} />
 
       <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -417,5 +423,58 @@ function ErrorState({ message }: { message: string }) {
         )}
       </div>
     </main>
+  );
+}
+
+const LEVEL_STYLE: Record<string, string> = {
+  error: 'bg-red-50 text-red-700',
+  warn: 'bg-amber-50 text-amber-800',
+  info: 'bg-gray-100 text-gray-600',
+};
+
+/** Sign-in funnel and everything that went wrong in the last 7 days (app_events). */
+function ProblemsSection({ events }: { events: EventRow[] }) {
+  const count = (kind: string) => events.filter((e) => e.kind === kind).length;
+  const problems = events.filter((e) => e.level !== 'info');
+  return (
+    <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+      <h2 className="font-semibold text-gray-900">Problems &amp; sign-in, last 7 days</h2>
+      <p className="text-xs text-gray-500">
+        Failures users ran into (server and browser) and the sign-in funnel. A summary is emailed daily when
+        something happened.
+      </p>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-4">
+        {[
+          ['Sign-in links requested', count('auth.link_requested')],
+          ['Signed in', count('auth.signed_in')],
+          ['Sign-in failures', count('auth.callback_failed') + count('auth.link_request_failed')],
+          ['Monthly limit reached', count('send.limit_reached')],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg bg-gray-50 p-3">
+            <dt className="text-xs text-gray-500">{label}</dt>
+            <dd className="mt-1 text-2xl font-semibold text-gray-900">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {problems.length === 0 ? (
+        <p className="mt-4 text-sm text-gray-500">No problems recorded. 🎉</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-gray-100 text-sm">
+          {problems.slice(0, 30).map((e, i) => (
+            <li key={`${e.created_at}-${i}`} className="py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${LEVEL_STYLE[e.level] ?? LEVEL_STYLE.info}`}>
+                  {e.level}
+                </span>
+                <span className="font-medium text-gray-900">{e.kind}</span>
+                {e.path && <span className="text-xs text-gray-500">{e.path}</span>}
+                <span className="ml-auto text-xs text-gray-500">{formatDateTime(e.created_at)}</span>
+              </div>
+              {e.message && <p className="mt-1 break-words text-gray-600">{e.message}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
