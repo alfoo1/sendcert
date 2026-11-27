@@ -10,7 +10,7 @@ import {
   splitByDailyCap,
   unsubscribe,
   type RecipientState,
-} from '@/lib/events/logic';
+} from '@/lib/eventMode/logic';
 
 const fresh: RecipientState = { rsvp: 'pending', unsubscribed: false, attended: null };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateToken, generateUniqueTokens, isToken, TOKEN_LENGTH } from '@/lib/events/tokens';
+import { generateToken, generateUniqueTokens, isToken, TOKEN_LENGTH } from '@/lib/eventMode/tokens';
 
 describe('event tokens', () => {
   it('are 22-character base64url strings (128 bits)', () => {

@@ -1,62 +1,30 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { logEvent, type EventLevel } from '@/lib/events';
-import { getClientIp } from '@/lib/rateLimit';
-import { getLoggedInUserId } from '@/lib/session';
+import { getEventOwner } from '@/lib/eventMode/owner';
+import { addRecipients, createEvent, EventStoreError } from '@/lib/eventMode/store';
+import { EventInputError, parseEventInput, parseRecipients } from '@/lib/eventMode/validate';
+import { errorMessage, logEvent } from '@/lib/events';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Browser-side reports (lib/clientEvents.ts): JavaScript errors, failed
-// requests the user saw, and sign-in steps that only happen in the browser.
-// Only these kinds are accepted, with their fixed level.
-const ALLOWED: Record<string, EventLevel> = {
-  'client.error': 'error',
-  'client.request_failed': 'error',
-  'auth.link_requested': 'info',
-  'auth.link_request_failed': 'error',
-};
-
-// Best-effort flood guard per server instance: 30 reports per IP per minute.
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 30;
-const hits = new Map<string, { start: number; n: number }>();
-
-function allow(ip: string): boolean {
-  const now = Date.now();
-  const entry = hits.get(ip);
-  if (!entry || now - entry.start > WINDOW_MS) {
-    hits.set(ip, { start: now, n: 1 });
-    if (hits.size > 5000) hits.clear();
-    return true;
-  }
-  entry.n += 1;
-  return entry.n <= MAX_PER_WINDOW;
-}
-
+/** Creates an event with its recipients (event wizard, last step). */
 export async function POST(req: NextRequest) {
-  if (!allow(getClientIp(req))) return new NextResponse(null, { status: 429 });
-  let body: { kind?: unknown; message?: unknown; path?: unknown; detail?: unknown };
+  const owner = await getEventOwner();
+  if (!owner) return NextResponse.json({ error: 'Sign in to create events.' }, { status: 401 });
   try {
-    const text = await req.text();
-    if (text.length > 8000) return new NextResponse(null, { status: 413 });
-    body = JSON.parse(text);
-  } catch {
-    return new NextResponse(null, { status: 400 });
+    const body = (await req.json()) as Record<string, unknown>;
+    const input = parseEventInput(body, 'en');
+    const { people, invalid } = parseRecipients(body.recipients);
+    if (people.length === 0) {
+      return NextResponse.json({ error: 'Add at least one person with a name and a valid email.' }, { status: 400 });
+    }
+    const event = await createEvent(owner.id, input);
+    const { added, duplicates } = await addRecipients(event, people);
+    return NextResponse.json({ id: event.id, added, duplicates: duplicates.length, invalid });
+  } catch (err) {
+    if (err instanceof EventInputError) return NextResponse.json({ error: err.message }, { status: 400 });
+    await logEvent('events.create_failed', { message: errorMessage(err), path: '/api/events', userId: owner.id });
+    const status = err instanceof EventStoreError ? 503 : 500;
+    return NextResponse.json({ error: 'Could not create the event. Please try again.' }, { status });
   }
-  const kind = typeof body.kind === 'string' ? body.kind : '';
-  const level = ALLOWED[kind];
-  if (!level) return new NextResponse(null, { status: 400 });
-
-  const detail =
-    body.detail && typeof body.detail === 'object' && !Array.isArray(body.detail)
-      ? (body.detail as Record<string, unknown>)
-      : {};
-  await logEvent(kind, {
-    level,
-    message: typeof body.message === 'string' ? body.message : undefined,
-    path: typeof body.path === 'string' ? body.path : undefined,
-    detail: { ...detail, userAgent: req.headers.get('user-agent')?.slice(0, 200) },
-    userId: await getLoggedInUserId(),
-  });
-  return new NextResponse(null, { status: 204 });
 }
