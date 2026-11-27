@@ -13,6 +13,7 @@ import EmailStep, { type EmailConfig } from '@/components/EmailStep';
 import PreviewStep from '@/components/PreviewStep';
 import { PRESET_TEMPLATES } from '@/lib/templates';
 import type { AiDraft } from '@/lib/aiDrafts';
+import type { BatchDesign } from '@/lib/account';
 import { isValidEmail } from '@/lib/validation';
 import {
   getDefaultContent,
@@ -20,9 +21,10 @@ import {
 } from '@/lib/certificateContent';
 import {
   defaultExtraFields,
+  emptyExtraField,
   type ExtraField,
 } from '@/lib/extraFields';
-import { localizePath, tx, type Locale } from '@/lib/i18n';
+import { LOCALE_TAG, localizePath, tx, type Locale } from '@/lib/i18n';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 
@@ -115,8 +117,59 @@ function Wizard({ locale }: { locale: Locale }) {
     { status: 'loaded'; recipients: number } | { status: 'expired' } | null
   >(null);
 
+  // "Send again with this design" from the dashboard: /app?batch=<id>.
+  const [reusedDesign, setReusedDesign] = useState<
+    { status: 'loaded'; date: string } | { status: 'unavailable' } | null
+  >(null);
+
   useEffect(() => {
     let cancelled = false;
+
+    function applyBatchDesign(design: BatchDesign) {
+      // The stored design is a flat image (built-in template texts included);
+      // the name and the extra texts stay editable on top of it.
+      setTemplateDataUrl(design.templateImage);
+      setTemplateId(null);
+      setRenderedTemplateDataUrl(null);
+      setContent(null);
+      setTextConfig({
+        x: design.textConfig.x,
+        y: design.textConfig.y,
+        fontSize: design.textConfig.fontSize,
+        color: design.textConfig.color,
+        fontFamily: design.textConfig.fontFamily ?? 'helvetica',
+      });
+      setExtraFields(
+        design.extraFields.map((f, i) => ({
+          ...emptyExtraField(locale),
+          label: f.text.slice(0, 40) || `${t('Field', 'Campo')} ${i + 1}`,
+          value: f.text,
+          x: f.x,
+          y: f.y,
+          fontSize: f.fontSize,
+          color: f.color,
+          fontFamily: f.fontFamily ?? 'helvetica',
+        })),
+      );
+      const fallback = defaultEmailConfig(locale);
+      setEmailConfig({
+        subject: design.email.subject ?? fallback.subject,
+        body: design.email.body ?? fallback.body,
+        ...(design.email.replyTo ? { replyTo: design.email.replyTo } : {}),
+        certificateName: design.credential ?? undefined,
+        issuerName: design.issuer ?? undefined,
+      });
+      setRecipients([]);
+      setStep(2);
+      setReusedDesign({
+        status: 'loaded',
+        date: new Date(design.createdAt).toLocaleDateString(LOCALE_TAG[locale], {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+      });
+    }
 
     function applyAssistantDraft(draft: AiDraft) {
       const preset = PRESET_TEMPLATES.find((p) => p.id === draft.templateId) ?? PRESET_TEMPLATES[0];
@@ -140,6 +193,21 @@ function Wizard({ locale }: { locale: Locale }) {
     }
 
     async function restore() {
+      const batchId = new URLSearchParams(window.location.search).get('batch');
+      if (batchId) {
+        const design = await fetch(`/api/batches/${encodeURIComponent(batchId)}/design`, { cache: 'no-store' })
+          .then((r) => (r.ok ? (r.json() as Promise<BatchDesign>) : null))
+          .catch(() => null);
+        if (cancelled) return;
+        if (design) {
+          applyBatchDesign(design);
+          setDraftLoaded(true);
+          trackEvent('design_reused');
+          return;
+        }
+        setReusedDesign({ status: 'unavailable' });
+      }
+
       const draftId = new URLSearchParams(window.location.search).get('draft');
       if (draftId) {
         const fromAssistant = await fetch(`/api/drafts/${encodeURIComponent(draftId)}`, { cache: 'no-store' })
@@ -430,6 +498,32 @@ function Wizard({ locale }: { locale: Locale }) {
                 'Revisa el diseño, los destinatarios y el correo. No se envía nada hasta que hagas clic en Enviar.',
               )}
             </p>
+          </div>
+        )}
+
+        {reusedDesign?.status === 'loaded' && (
+          <div className="mb-4 rounded-lg border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-900">
+              {t(
+                `Using the design from your send of ${reusedDesign.date}.`,
+                `Usando el diseño de tu envío del ${reusedDesign.date}.`,
+              )}
+            </p>
+            <p className="mt-0.5">
+              {t(
+                'Update the date and any added texts, then add the new recipients. Other texts are part of the saved design; to change them, start a new design.',
+                'Actualiza la fecha y los textos agregados, y después suma a los nuevos destinatarios. Los demás textos son parte del diseño guardado; para cambiarlos, empieza un diseño nuevo.',
+              )}
+            </p>
+          </div>
+        )}
+
+        {reusedDesign?.status === 'unavailable' && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {t(
+              "We couldn't load that design. Make sure you're signed in with the account that sent it, or start here.",
+              'No pudimos cargar ese diseño. Revisa que hayas iniciado sesión con la cuenta que lo envió, o empieza aquí.',
+            )}
           </div>
         )}
 

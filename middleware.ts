@@ -5,7 +5,7 @@ import {
 } from '@/lib/supabase';
 
 // Routes that require an authenticated user. Anything else falls through.
-const PROTECTED_PREFIXES = ['/dashboard', '/admin'];
+const PROTECTED_PREFIXES = ['/dashboard', '/es/panel', '/admin'];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
@@ -32,7 +32,7 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl = new URL('/login', req.url);
+    const loginUrl = new URL(pathname.startsWith('/es/') ? '/es/login' : '/login', req.url);
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -44,5 +44,5 @@ export async function middleware(req: NextRequest) {
 // middleware on every request that matches, so excluding static assets and
 // public pages keeps things snappy.
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/es/panel/:path*', '/admin/:path*'],
 };

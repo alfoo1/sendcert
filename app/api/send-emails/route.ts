@@ -287,6 +287,14 @@ export async function POST(req: NextRequest) {
           height,
           text_config: textConfig,
           extra_fields: extraFields ?? [],
+          // Accounts only: lets the dashboard resend with the same message.
+          ...(userId
+            ? {
+                email_subject: emailConfig.subject.slice(0, 500),
+                email_body: emailConfig.body.slice(0, 10000),
+                reply_to: senderReplyTo ?? null,
+              }
+            : {}),
         })
         .select('id')
         .single();
@@ -430,6 +438,7 @@ export async function POST(req: NextRequest) {
         recipients: validRecipients.length,
         sent,
         failed,
+        batchId,
       });
 
       sendEvent({

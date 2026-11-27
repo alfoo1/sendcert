@@ -27,6 +27,7 @@ const ES_SLUGS: Record<string, string> = {
   '/ai-assistants': '/asistentes-ia',
   '/privacy': '/privacidad',
   '/terms': '/terminos',
+  '/dashboard': '/panel',
 };
 
 /**

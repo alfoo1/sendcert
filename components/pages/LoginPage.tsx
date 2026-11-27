@@ -89,7 +89,7 @@ export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
           // Carry ?next (e.g. /admin) through the magic link; the callback
           // only accepts same-site paths.
           emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(
-            new URLSearchParams(window.location.search).get('next') ?? '/dashboard',
+            new URLSearchParams(window.location.search).get('next') ?? localizePath('/dashboard', locale),
           )}`,
         },
       });

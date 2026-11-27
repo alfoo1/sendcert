@@ -74,9 +74,11 @@ export async function logSend(entry: {
   recipients: number;
   sent: number;
   failed: number;
+  batchId?: string | null;
 }): Promise<void> {
   if (!isSupabaseServiceConfigured()) return;
   const { error } = await createServiceSupabaseClient().from('send_log').insert({
+    batch_id: entry.batchId ?? null,
     user_id: entry.userId,
     ip_hash: entry.ipHash,
     template: entry.template,
