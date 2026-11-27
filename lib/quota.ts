@@ -75,10 +75,14 @@ export async function logSend(entry: {
   sent: number;
   failed: number;
   batchId?: string | null;
+  // Event emails (migration 0010): which event and what kind of email.
+  eventId?: string | null;
+  kind?: 'certificate' | 'invite';
 }): Promise<void> {
   if (!isSupabaseServiceConfigured()) return;
   const { error } = await createServiceSupabaseClient().from('send_log').insert({
     batch_id: entry.batchId ?? null,
+    ...(entry.eventId ? { event_id: entry.eventId, kind: entry.kind ?? 'invite' } : {}),
     user_id: entry.userId,
     ip_hash: entry.ipHash,
     template: entry.template,

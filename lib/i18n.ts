@@ -28,6 +28,8 @@ const ES_SLUGS: Record<string, string> = {
   '/privacy': '/privacidad',
   '/terms': '/terminos',
   '/dashboard': '/panel',
+  '/events': '/eventos',
+  '/events/new': '/eventos/nuevo',
 };
 
 /**
@@ -37,7 +39,13 @@ const ES_SLUGS: Record<string, string> = {
 export function localizePath(enPath: string, locale: Locale): string {
   if (locale === 'en') return enPath;
   if (enPath === '/') return '/es';
-  return `/es${ES_SLUGS[enPath] ?? enPath}`;
+  if (ES_SLUGS[enPath]) return `/es${ES_SLUGS[enPath]}`;
+  // Sub-paths of a translated section keep their tail: /events/<id> → /es/eventos/<id>.
+  const prefix = Object.keys(ES_SLUGS)
+    .filter((key) => enPath.startsWith(`${key}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (prefix) return `/es${ES_SLUGS[prefix]}${enPath.slice(prefix.length)}`;
+  return `/es${enPath}`;
 }
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '');

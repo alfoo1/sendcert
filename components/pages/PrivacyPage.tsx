@@ -10,7 +10,7 @@ export const PRIVACY_COPY = {
   },
 };
 
-const UPDATED = { en: 'Last updated: November 26, 2026', es: 'Última actualización: 26 de noviembre de 2026' };
+const UPDATED = { en: 'Last updated: November 27, 2026', es: 'Última actualización: 27 de noviembre de 2026' };
 
 /** /privacy and /es/privacidad. Keep both languages in sync. */
 export default function PrivacyPage({ locale }: { locale: Locale }) {
@@ -62,6 +62,16 @@ function PrivacyEn() {
         policy.
       </p>
 
+      <h3>Event invites</h3>
+      <p>
+        Organizers with an account can invite people to an event. We store each invitee&apos;s name and email, their
+        personal link, their answer (coming or not, and the optional reason they give) and whether they asked to
+        unsubscribe from that organizer&apos;s emails, so the organizer can follow the responses. Answering &quot;I
+        can&apos;t make it&quot; is not an unsubscribe; unsubscribing is a separate choice on every email and page.
+        The photo an invitee adds to their share card is processed only in their browser and is never uploaded. Event
+        data is deleted 12 months after the event date, or earlier if the organizer or the invitee asks us.
+      </p>
+
       <h3>If you create an account</h3>
       <p>
         We store your email address, a display name derived from it, your plan and your monthly usage. You sign in with
@@ -106,6 +116,7 @@ function PrivacyEn() {
       <ul>
         <li>AI assistant drafts: 24 hours.</li>
         <li>Error logs: 90 days.</li>
+        <li>Events and their invitees&apos; answers: 12 months after the event.</li>
         <li>Verification records: as long as the certificate should remain verifiable, or until removal is requested.</li>
         <li>Accounts and their send history: until you ask us to delete them.</li>
       </ul>
@@ -173,6 +184,17 @@ function PrivacyEs() {
         propia política de privacidad.
       </p>
 
+      <h3>Invitaciones a eventos</h3>
+      <p>
+        Los organizadores con cuenta pueden invitar personas a un evento. Guardamos el nombre y el correo de cada
+        invitado, su enlace personal, su respuesta (si va o no, y el motivo opcional que indique) y si pidió darse de
+        baja de los correos de ese organizador, para que el organizador pueda seguir las respuestas. Responder &quot;No
+        puedo ir&quot; no es darse de baja; la baja es una opción aparte en cada correo y página. La foto que un
+        invitado agrega a su tarjeta para compartir se procesa solo en su navegador y nunca se sube. Los datos del
+        evento se eliminan 12 meses después de la fecha del evento, o antes si el organizador o el invitado nos lo
+        piden.
+      </p>
+
       <h3>Si creas una cuenta</h3>
       <p>
         Guardamos tu correo, un nombre visible tomado de ese correo, tu plan y tu uso mensual. Inicias sesión con un
@@ -219,6 +241,7 @@ function PrivacyEs() {
       <ul>
         <li>Borradores de asistentes de IA: 24 horas.</li>
         <li>Registros de errores: 90 días.</li>
+        <li>Eventos y las respuestas de sus invitados: 12 meses después del evento.</li>
         <li>
           Registros de verificación: mientras el certificado deba poder verificarse, o hasta que se pida eliminarlo.
         </li>

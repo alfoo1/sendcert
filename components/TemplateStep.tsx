@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { PRESET_TEMPLATES, presetDescription, presetName } from '@/lib/templates';
 import { useLocale, useTx } from '@/components/i18n/LocaleProvider';
+import { localizePath } from '@/lib/i18n';
 import { TemplateThumbnail } from './CertificateRenderer';
 import { trackEvent } from './Analytics';
 
@@ -56,6 +58,21 @@ export default function TemplateStep({ templateDataUrl, templateId, onTemplateCh
             es: 'Elige un diseño. En el siguiente paso puedes cambiar cada texto, el color y agregar tu logo.',
           })}
         </p>
+        {/* Secondary, optional action: the default flow stays "send certificates". */}
+        <Link
+          href={localizePath('/events/new', locale)}
+          className="mt-3 inline-flex flex-col rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm hover:border-brand-400 hover:bg-brand-50/40"
+        >
+          <span className="font-medium text-gray-800">
+            {t({ en: 'Send a pre-event invite →', es: 'Enviar una invitación previa al evento →' })}
+          </span>
+          <span className="text-xs text-gray-500">
+            {t({
+              en: 'Boost attendance and get people sharing before your event.',
+              es: 'Aumenta la asistencia y logra que compartan antes de tu evento.',
+            })}
+          </span>
+        </Link>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

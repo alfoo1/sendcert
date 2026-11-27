@@ -37,6 +37,13 @@ export type MailMessage = {
   locale?: Locale;
   // The sender's own address for replies; falls back to SMTP_REPLY_TO.
   replyTo?: string;
+  // Event emails: "<Organizer> via SendCert" as the sender name, their own
+  // HTML/text (instead of the certificate layout) and extra headers such as
+  // List-Unsubscribe.
+  fromName?: string;
+  html?: string;
+  text?: string;
+  headers?: Record<string, string>;
 };
 
 /**
@@ -238,13 +245,15 @@ export async function sendMail(
   cfg: ServerSmtpConfig,
   message: MailMessage,
 ) {
+  const fromName = (message.fromName ?? cfg.fromName).replace(/["<>]/g, '');
   return transporter.sendMail({
-    from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
+    from: `"${fromName}" <${cfg.fromEmail}>`,
     to: message.to,
     subject: message.subject,
-    text: renderText(message),
-    html: renderHtml(message),
+    text: message.text ?? renderText(message),
+    html: message.html ?? renderHtml(message),
     attachments: message.attachments,
+    ...(message.headers ? { headers: message.headers } : {}),
     ...(message.replyTo || cfg.replyTo ? { replyTo: message.replyTo || cfg.replyTo } : {}),
   });
 }

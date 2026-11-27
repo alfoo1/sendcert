@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import AccountShell from '@/components/account/AccountShell';
 import { getAccountUser, getSends, sendDetailPath } from '@/lib/account';
+import { listEventsWithCounts } from '@/lib/eventMode/store';
+import { formatEventDate } from '@/lib/eventMode/format';
+import { eventDashboardPath } from '@/lib/eventMode/paths';
 import { LOCALE_TAG, localizePath, tx, type Locale } from '@/lib/i18n';
 import { USER_LIMIT } from '@/lib/quota';
 import { getLoggedInUser } from '@/lib/session';
@@ -36,7 +39,12 @@ export default async function DashboardView({ locale }: { locale: Locale }) {
     );
   }
 
-  const [account, sends] = await Promise.all([getAccountUser(user.id, user.email), getSends(user.id)]);
+  const [account, sends, events] = await Promise.all([
+    getAccountUser(user.id, user.email),
+    getSends(user.id),
+    // Empty until migration 0010 runs; never breaks the dashboard.
+    listEventsWithCounts(user.id).catch(() => []),
+  ]);
   const pct = Math.min(100, Math.round((account.sendsThisMonth / USER_LIMIT) * 100));
   const appPath = localizePath('/app', locale);
 
@@ -78,6 +86,41 @@ export default async function DashboardView({ locale }: { locale: Locale }) {
             {t('How to connect →', 'Cómo conectarlo →')}
           </Link>
         </div>
+      </section>
+
+      <section className="mt-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-gray-900">{t('Events', 'Eventos')}</h2>
+          <Link href={localizePath('/events/new', locale)} className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50">
+            + {t('Send a pre-event invite', 'Enviar una invitación previa')}
+          </Link>
+        </div>
+        {events.length === 0 ? (
+          <p className="mt-3 text-sm text-gray-500">
+            {t(
+              'Invite people before your event, see who is coming and get them sharing on LinkedIn.',
+              'Invita a la gente antes de tu evento, mira quién va y logra que lo compartan en LinkedIn.',
+            )}
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+            {events.map((e) => (
+              <li key={e.id}>
+                <Link href={eventDashboardPath(locale, e.id)} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50">
+                  <span>
+                    <span className="font-medium text-gray-900">{e.name}</span>
+                    <span className="ml-2 text-sm text-gray-500">{formatEventDate(e, locale, 'short') ?? ''}</span>
+                  </span>
+                  <span className="flex gap-3 text-xs">
+                    <span className="text-green-700">{e.counts.coming} {t('coming', 'van')}</span>
+                    <span className="text-red-700">{e.counts.notComing} {t('not coming', 'no van')}</span>
+                    <span className="text-amber-700">{e.counts.noAnswer} {t('no answer', 'sin respuesta')}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="mt-10">
