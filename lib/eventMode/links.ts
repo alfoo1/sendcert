@@ -1,12 +1,13 @@
-// Public URLs for event recipients.
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sendcert.org').replace(/\/$/, '');
+import { siteUrl } from '@/lib/siteUrl';
+
+// Public URLs for event recipients (on previews, the preview's own domain).
 
 export function personalLink(token: string): string {
-  return `${SITE_URL}/e/${token}`;
+  return `${siteUrl()}/e/${token}`;
 }
 
 export function unsubscribeLink(token: string): string {
-  return `${SITE_URL}/e/${token}/unsubscribe`;
+  return `${siteUrl()}/e/${token}/unsubscribe`;
 }
 
 /** Organizer pages, in the event's or the reader's language. */

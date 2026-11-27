@@ -9,8 +9,8 @@ import { inviteText } from '@/lib/eventMode/invite';
 import { shareCardEvent } from '@/lib/eventMode/card';
 import { eventDashboardPath } from '@/lib/eventMode/links';
 import { localizePath, tx, type Locale } from '@/lib/i18n';
+import { siteUrl } from '@/lib/siteUrl';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sendcert.org').replace(/\/$/, '');
 
 /** Server part of the event dashboard (/events/<id>, /es/eventos/<id>). */
 export default async function EventDashboardView({ locale, id }: { locale: Locale; id: string }) {
@@ -34,7 +34,7 @@ export default async function EventDashboardView({ locale, id }: { locale: Local
           locale={locale}
           eventId={event.id}
           people={people}
-          siteUrl={SITE_URL}
+          siteUrl={siteUrl()}
           invite={inviteText(event, event.locale)}
           shareCard={event.shareCard}
           previewCard={shareCardEvent(event, event.locale)}

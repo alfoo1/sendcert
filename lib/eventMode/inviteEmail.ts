@@ -2,8 +2,8 @@ import { tx, type Locale } from '@/lib/i18n';
 import { formatEventDate, formatEventTime } from '@/lib/eventMode/format';
 import { personalLink, unsubscribeLink } from '@/lib/eventMode/links';
 import type { EventRecipient, EventRecord } from '@/lib/eventMode/types';
+import { siteUrl } from '@/lib/siteUrl';
 
-const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.sendcert.org').replace(/\/$/, '');
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -61,7 +61,7 @@ export function buildInviteEmail(
       </td></tr>
     </table>
     <p style="margin:16px 0 0;max-width:560px;font-size:12px;line-height:18px;color:#9ca3af;">${esc(footer)}<br>
-      <a href="${unsub}" style="color:#6b7280;">${esc(t('Unsubscribe from emails', 'Darte de baja de los correos'))}</a> · <a href="${SITE_URL}" style="color:#6b7280;">SendCert</a></p>
+      <a href="${unsub}" style="color:#6b7280;">${esc(t('Unsubscribe from emails', 'Darte de baja de los correos'))}</a> · <a href="${siteUrl()}" style="color:#6b7280;">SendCert</a></p>
   </td></tr></table>
 </body></html>`;
 
@@ -71,7 +71,7 @@ export function buildInviteEmail(
     html,
     fromName: `${organizer} via SendCert`,
     headers: {
-      'List-Unsubscribe': `<${SITE_URL}/api/e/${person.token}/unsubscribe>`,
+      'List-Unsubscribe': `<${siteUrl()}/api/e/${person.token}/unsubscribe>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     },
   };
