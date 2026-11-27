@@ -13,7 +13,7 @@ import { PRESET_TEMPLATES, presetName } from '@/lib/templates';
 import { isValidEmail } from '@/lib/validation';
 import { defaultPostText, formatEventDate, formatEventTime, hashtagText } from '@/lib/eventMode/format';
 import { uploadEventImage } from '@/lib/eventMode/upload';
-import { eventDashboardPath } from '@/lib/eventMode/links';
+import { eventDashboardPath } from '@/lib/eventMode/paths';
 import { inviteText } from '@/lib/eventMode/invite';
 import type { EventRecord, PartnerLogo, ShareCardSettings } from '@/lib/eventMode/types';
 import { localizePath, tx, type Locale } from '@/lib/i18n';

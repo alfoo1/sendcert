@@ -7,7 +7,7 @@ import { getEvent, listRecipients } from '@/lib/eventMode/store';
 import { formatEventDate, formatEventTime } from '@/lib/eventMode/format';
 import { inviteText } from '@/lib/eventMode/invite';
 import { shareCardEvent } from '@/lib/eventMode/card';
-import { eventDashboardPath } from '@/lib/eventMode/links';
+import { eventDashboardPath } from '@/lib/eventMode/paths';
 import { localizePath, tx, type Locale } from '@/lib/i18n';
 import { siteUrl } from '@/lib/siteUrl';
 

@@ -4,7 +4,7 @@ import AccountShell from '@/components/account/AccountShell';
 import { getAccountUser, getSends, sendDetailPath } from '@/lib/account';
 import { listEventsWithCounts } from '@/lib/eventMode/store';
 import { formatEventDate } from '@/lib/eventMode/format';
-import { eventDashboardPath } from '@/lib/eventMode/links';
+import { eventDashboardPath } from '@/lib/eventMode/paths';
 import { LOCALE_TAG, localizePath, tx, type Locale } from '@/lib/i18n';
 import { USER_LIMIT } from '@/lib/quota';
 import { getLoggedInUser } from '@/lib/session';
