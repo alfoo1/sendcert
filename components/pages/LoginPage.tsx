@@ -37,9 +37,6 @@ function requestErrorMessage(message: string, locale: Locale): string {
   return message;
 }
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-
 // Magic-link only — no passwords. The button always disables itself after a
 // single submit so a curious user can't spam OTPs.
 export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
@@ -88,7 +85,8 @@ export default function LoginPage({ locale = 'en' }: { locale?: Locale }) {
         options: {
           // Carry ?next (e.g. /admin) through the magic link; the callback
           // only accepts same-site paths.
-          emailRedirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(
+          // Back to this same domain (production, a Vercel preview or localhost).
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
             new URLSearchParams(window.location.search).get('next') ?? localizePath('/dashboard', locale),
           )}`,
         },

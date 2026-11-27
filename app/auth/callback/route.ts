@@ -6,6 +6,7 @@ import {
   isSupabaseConfigured,
 } from '@/lib/supabase';
 import { logEvent } from '@/lib/events';
+import { isTrustedPreviewHost } from '@/lib/siteUrl';
 
 export const runtime = 'nodejs';
 
@@ -46,8 +47,30 @@ function failureReason(message: string): 'other_browser' | 'link_expired' | 'fai
  *  - code (PKCE, older emails): needs the code verifier cookie from the
  *    browser that requested the link.
  */
+/**
+ * The email template always links to production ({{ .SiteURL }}). When the
+ * sign-in was requested on a Vercel preview (or localhost), `next` is that
+ * domain's callback: pass the unused token on so the session opens there.
+ */
+function previewHandoff(url: URL): URL | null {
+  const raw = url.searchParams.get('next');
+  const tokenHash = url.searchParams.get('token_hash');
+  if (!raw || !tokenHash || raw.startsWith('/')) return null;
+  try {
+    const target = new URL(raw);
+    if (target.host === url.host || !isTrustedPreviewHost(target.host) || target.pathname !== '/auth/callback') return null;
+    target.searchParams.set('token_hash', tokenHash);
+    target.searchParams.set('type', url.searchParams.get('type') ?? 'email');
+    return target;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+  const handoff = previewHandoff(url);
+  if (handoff) return NextResponse.redirect(handoff);
   const next = resolveNext(url.searchParams.get('next'), url.host);
   const loginPath = next.startsWith('/es') ? '/es/login' : '/login';
   const tokenHash = url.searchParams.get('token_hash');
