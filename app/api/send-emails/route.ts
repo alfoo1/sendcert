@@ -24,6 +24,15 @@ import { generateVerifyId } from '@/lib/verifyId';
 import { getLoggedInUserId } from '@/lib/session';
 import { errorMessage, logEvent } from '@/lib/events';
 import {
+  GUEST_DAILY_GLOBAL_LIMIT,
+  guestCapMessage,
+  guestEmailsLast24h,
+  guestPausedMessage,
+  guestSendingPaused,
+  reportBlocked,
+  screenSend,
+} from '@/lib/abuseGuard';
+import {
   GUEST_LIMIT,
   USER_LIMIT,
   consumeGuestQuota,
@@ -150,6 +159,48 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ---------- Abuse checks ----------
+  // Before anything else: guests can be paused, every send's text goes
+  // through the phishing filter, and guests share a global daily cap.
+  const userId = await getLoggedInUserId();
+  const ipHash = hashIp(getClientIp(req));
+  if (!userId && guestSendingPaused()) {
+    return NextResponse.json({ error: guestPausedMessage(locale), tier: 'guest' }, { status: 403 });
+  }
+  const blocked = await screenSend({
+    route: '/api/send-emails',
+    userId,
+    ipHash,
+    locale,
+    texts: [
+      emailConfig?.subject,
+      emailConfig?.body,
+      emailConfig?.certificateName,
+      emailConfig?.issuerName,
+      courseName,
+      ...(Array.isArray(extraFields) ? extraFields.map((f) => f?.text) : []),
+    ],
+    names: validRecipients.map((r) => r.name),
+    recipients: validRecipients.length,
+    subject: emailConfig?.subject,
+  });
+  if (blocked) return NextResponse.json({ error: blocked, blocked: true }, { status: 400 });
+  if (!userId) {
+    const guestsToday = await guestEmailsLast24h();
+    if (guestsToday + validRecipients.length > GUEST_DAILY_GLOBAL_LIMIT) {
+      await reportBlocked({
+        route: '/api/send-emails',
+        code: 'guest_cap',
+        match: `${guestsToday} guest emails in 24h`,
+        userId,
+        ipHash,
+        recipients: validRecipients.length,
+        subject: emailConfig?.subject,
+      });
+      return NextResponse.json({ error: guestCapMessage(locale), tier: 'guest' }, { status: 429 });
+    }
+  }
+
   // ---------- Template image ----------
   let baseImage: Buffer;
   try {
@@ -204,8 +255,6 @@ export async function POST(req: NextRequest) {
   // ---------- Monthly quota ----------
   // Reserved only after the template and SMTP checks pass, so a request
   // that can't be sent never consumes quota. Failed sends are refunded below.
-  const userId = await getLoggedInUserId();
-  const ipHash = hashIp(getClientIp(req));
   const quota = userId
     ? await consumeUserQuota(userId, validRecipients.length)
     : await consumeGuestQuota(ipHash, validRecipients.length);
