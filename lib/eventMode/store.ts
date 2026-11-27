@@ -168,6 +168,34 @@ export async function listEvents(ownerId: string): Promise<EventRecord[]> {
   return (data ?? []).map(toEvent);
 }
 
+export type EventSummary = EventRecord & { counts: { total: number; coming: number; notComing: number; noAnswer: number } };
+
+/** The organizer's events with answer counts (dashboard list). */
+export async function listEventsWithCounts(ownerId: string): Promise<EventSummary[]> {
+  const events = await listEvents(ownerId);
+  const counts = new Map(events.map((e) => [e.id, { total: 0, coming: 0, notComing: 0, noAnswer: 0 }]));
+  let rows: { event_id: string; rsvp: string }[] = [];
+  if (useMemory()) {
+    rows = Array.from(memory.recipients.values()).map((r) => ({ event_id: r.eventId, rsvp: r.rsvp }));
+  } else if (events.length > 0) {
+    const { data } = await db()
+      .from('event_recipients')
+      .select('event_id, rsvp')
+      .in('event_id', events.map((e) => e.id))
+      .limit(50000);
+    rows = (data ?? []) as { event_id: string; rsvp: string }[];
+  }
+  for (const r of rows) {
+    const c = counts.get(r.event_id);
+    if (!c) continue;
+    c.total += 1;
+    if (r.rsvp === 'yes') c.coming += 1;
+    else if (r.rsvp === 'no') c.notComing += 1;
+    else c.noAnswer += 1;
+  }
+  return events.map((e) => ({ ...e, counts: counts.get(e.id)! }));
+}
+
 /** Deletes events past their retention date (daily cron). */
 export async function deleteExpiredEvents(): Promise<void> {
   if (!isSupabaseServiceConfigured()) return;

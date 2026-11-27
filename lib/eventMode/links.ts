@@ -8,3 +8,8 @@ export function personalLink(token: string): string {
 export function unsubscribeLink(token: string): string {
   return `${SITE_URL}/e/${token}/unsubscribe`;
 }
+
+/** Organizer pages, in the event's or the reader's language. */
+export function eventDashboardPath(locale: 'en' | 'es', id: string): string {
+  return locale === 'es' ? `/es/eventos/${id}` : `/events/${id}`;
+}

@@ -5,7 +5,7 @@ import {
 } from '@/lib/supabase';
 
 // Routes that require an authenticated user. Anything else falls through.
-const PROTECTED_PREFIXES = ['/dashboard', '/es/panel', '/admin'];
+const PROTECTED_PREFIXES = ['/dashboard', '/es/panel', '/events', '/es/eventos', '/admin'];
 
 function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(
@@ -44,5 +44,5 @@ export async function middleware(req: NextRequest) {
 // middleware on every request that matches, so excluding static assets and
 // public pages keeps things snappy.
 export const config = {
-  matcher: ['/dashboard/:path*', '/es/panel/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/es/panel/:path*', '/events/:path*', '/es/eventos/:path*', '/admin/:path*'],
 };

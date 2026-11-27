@@ -33,7 +33,7 @@ export function hitsSoFar(key: string, windowMs: number): number {
 // Requests per IP per minute for each public action, and a stricter cap on
 // lookups of tokens that don't exist (the brute-force signature).
 export const PUBLIC_LIMITS = {
-  action: { limit: 30, windowMs: 60_000 },
+  action: { limit: 60, windowMs: 60_000 },
   unknownToken: { limit: 10, windowMs: 10 * 60_000 },
 } as const;
 
