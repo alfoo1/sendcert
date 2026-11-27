@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import StudentsStep, { type Recipient as NewPerson } from '@/components/StudentsStep';
 import ShareCardDesigner from '@/components/events/ShareCardDesigner';
+import InvitePanel from '@/components/events/InvitePanel';
 import type { ShareCardEvent } from '@/components/events/ShareCardMaker';
 import { bucketOf, countStatuses, type Bucket } from '@/lib/eventMode/logic';
 import type { EventRecipient, ShareCardSettings } from '@/lib/eventMode/types';
@@ -40,6 +41,7 @@ export default function EventDashboard({
   const [adding, setAdding] = useState(false);
   const [addResult, setAddResult] = useState<string | null>(null);
   const [cardOpen, setCardOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
   const [card, setCard] = useState<ShareCardSettings>(shareCard);
   const [cardSaving, setCardSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
@@ -188,6 +190,11 @@ export default function EventDashboard({
                       {p.unsubscribed && (
                         <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{t('Unsubscribed', 'De baja')}</span>
                       )}
+                      {p.invitedAt && !p.respondedAt && (
+                        <p className="mt-1 text-xs text-gray-400">
+                          {t('Invited', 'Invitado')} {new Date(p.invitedAt).toLocaleDateString(LOCALE_TAG[locale], { month: 'short', day: 'numeric' })}
+                        </p>
+                      )}
                       {p.respondedAt && (
                         <p className="mt-1 text-xs text-gray-400">
                           {new Date(p.respondedAt).toLocaleDateString(LOCALE_TAG[locale], { month: 'short', day: 'numeric' })}
@@ -212,6 +219,21 @@ export default function EventDashboard({
             '“No van” solo significa que no asistirán. “Dados de baja” pidieron no recibir más correos; es una lista aparte.',
           )}
         </p>
+      </section>
+
+      <section className="rounded-xl border border-gray-200 bg-white">
+        <button type="button" onClick={() => setSendOpen((o) => !o)} className="flex w-full items-center justify-between px-5 py-4 text-left font-medium text-gray-900">
+          <span>
+            {t('Send invitations by email from SendCert', 'Enviar las invitaciones por correo desde SendCert')}{' '}
+            <span className="font-normal text-gray-500">{t('(optional)', '(opcional)')}</span>
+          </span>
+          <span className="text-gray-400">{sendOpen ? '−' : '+'}</span>
+        </button>
+        {sendOpen && (
+          <div className="border-t border-gray-200 p-5">
+            <InvitePanel locale={locale} eventId={eventId} />
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-gray-200 bg-white">
