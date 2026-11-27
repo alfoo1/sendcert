@@ -1,9 +1,11 @@
 import { createServiceSupabaseClient, isSupabaseServiceConfigured } from '@/lib/supabase';
 
-// The email provider's daily cap (Resend's free plan: 100 emails a day for
-// the whole SendCert account). Invites never start a send that can't finish:
-// they send what fits today and leave the rest for the next day.
-export const DAILY_EMAIL_LIMIT = Number(process.env.EMAIL_DAILY_LIMIT ?? 100);
+// Safety cap on emails per day for the whole SendCert account. Resend Pro has
+// no daily limit (50,000 a month), so this is ~50,000 / 30: enough for any
+// event's invites in one go, and a brake if something runs away. Invites
+// never start a send that can't finish: they send what fits today and leave
+// the rest for the next day.
+export const DAILY_EMAIL_LIMIT = Number(process.env.EMAIL_DAILY_LIMIT ?? 1500);
 
 const devCounter: { day: string; sent: number } = ((globalThis as { __sendcertDaily?: { day: string; sent: number } }).__sendcertDaily ??= {
   day: '',
