@@ -7,9 +7,11 @@ import { notifyOwner } from '@/lib/notify';
 import { createServiceSupabaseClient, isSupabaseServiceConfigured } from '@/lib/supabase';
 import type { Locale } from '@/lib/i18n';
 
-// All guests together (any IP) in the last 24 hours. Guests are rare and a
+// All guests together (any IP) in the last 24 hours, kept well under the
+// email provider's 100/day so guests can never use up everyone's sending.
+// Guests are rare (4 sends in the 30 days before this) and a
 // script can rotate IPs, so the per-IP monthly quota alone isn't a limit.
-export const GUEST_DAILY_GLOBAL_LIMIT = Number(process.env.GUEST_DAILY_GLOBAL_LIMIT ?? 150);
+export const GUEST_DAILY_GLOBAL_LIMIT = Number(process.env.GUEST_DAILY_GLOBAL_LIMIT ?? 50);
 
 /** Kill switch: GUEST_SENDING=off in the environment pauses sending without an account. */
 export function guestSendingPaused(): boolean {
