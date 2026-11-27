@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import StudentsStep, { type Recipient } from '@/components/StudentsStep';
 import ShareCardDesigner from '@/components/events/ShareCardDesigner';
 import ShareCardMaker, { type ShareCardEvent } from '@/components/events/ShareCardMaker';
+import InvitePanel from '@/components/events/InvitePanel';
 import { LocaleProvider } from '@/components/i18n/LocaleProvider';
 import LanguageSwitcher from '@/components/i18n/LanguageSwitcher';
 import { trackEvent } from '@/components/Analytics';
@@ -141,7 +142,8 @@ function Wizard({ locale, ownerEmail }: { locale: Locale; ownerEmail: string | n
   const previewCard: ShareCardEvent = useMemo(
     () => ({
       name: record.name,
-      dateLine: [formatEventDate(record, locale, 'short'), record.venue].filter(Boolean).join(' · ') || null,
+      dateLine: [formatEventDate(record, locale, 'short'), formatEventTime(record, locale)].filter(Boolean).join(' · ') || null,
+      placeLine: record.venue,
       organizer: record.organizerName,
       hashtag: hashtagText(record.hashtag),
       accent: record.accentColor,
@@ -247,41 +249,53 @@ function Wizard({ locale, ownerEmail }: { locale: Locale; ownerEmail: string | n
         </p>
 
         {created ? (
-          <section className="mt-8 rounded-2xl border border-green-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-gray-900">{t('Your event is ready 🎉', 'Tu evento está listo 🎉')}</h2>
-            <p className="mt-1 text-gray-600">
-              {t(
-                `${created.added} people have their own personal link to answer and get their share card.`,
-                `${created.added} personas tienen su enlace personal para responder y armar su tarjeta.`,
-              )}
-            </p>
-            <ol className="mt-5 space-y-4 text-sm text-gray-700">
-              <li>
-                <p className="font-medium text-gray-900">1. {t('Download the personal links', 'Descarga los enlaces personales')}</p>
-                <a href={`/api/events/${created.id}/export?type=links`} className="mt-2 inline-block rounded-lg bg-brand-600 px-4 py-2 font-semibold text-white hover:bg-brand-700">
+          <section className="mt-8 space-y-5">
+            <div className="rounded-2xl border border-green-200 bg-white p-6 shadow-sm">
+              <h2 className="text-xl font-semibold text-gray-900">{t('Your event is ready 🎉', 'Tu evento está listo 🎉')}</h2>
+              <p className="mt-1 text-gray-600">
+                {created.added === 1
+                  ? t('1 person has a personal link to answer and make their share card.', '1 persona tiene su enlace personal para responder y armar su tarjeta.')
+                  : t(
+                      `${created.added} people have a personal link to answer and make their share card.`,
+                      `${created.added} personas tienen su enlace personal para responder y armar su tarjeta.`,
+                    )}
+              </p>
+              <p className="mt-3 text-sm font-medium text-gray-900">{t('How do you want to send the invitations?', '¿Cómo quieres enviar las invitaciones?')}</p>
+            </div>
+
+            <div className="rounded-2xl border-2 border-brand-500 bg-white p-6 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">{t('Recommended', 'Recomendado')}</p>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">{t('Send them from SendCert', 'Enviarlas desde SendCert')}</h3>
+              <div className="mt-3">
+                <InvitePanel locale={locale} eventId={created.id} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-6">
+              <h3 className="text-lg font-semibold text-gray-900">{t('Or send them from your own email', 'O enviarlas desde tu propio correo')}</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                {t(
+                  'Download the personal links and use a mail merge (Gmail, Outlook…): {{name}} is the Name column and {{link}} the Personal link column.',
+                  'Descarga los enlaces personales y usa combinación de correspondencia (Gmail, Outlook…): {{name}} es la columna Nombre y {{link}} la columna Enlace personal.',
+                )}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a href={`/api/events/${created.id}/export?type=links`} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">
                   {t('Download links (CSV)', 'Descargar enlaces (CSV)')}
                 </a>
-              </li>
-              <li>
-                <p className="font-medium text-gray-900">2. {t('Send the invitation from your own email', 'Envía la invitación desde tu correo')}</p>
-                <p className="mt-1 text-gray-600">
-                  {t(
-                    'Use a mail merge (Gmail, Outlook…) with the CSV: {{name}} is the Name column and {{link}} the Personal link column.',
-                    'Usa combinación de correspondencia (Gmail, Outlook…) con el CSV: {{name}} es la columna Nombre y {{link}} la columna Enlace personal.',
-                  )}
-                </p>
-                <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">{`${invite.subject}\n\n${invite.body}`}</pre>
-                <button type="button" onClick={copyInvite} className="mt-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium">
+                <button type="button" onClick={copyInvite} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800">
                   {copied ? t('Copied ✓', 'Copiado ✓') : t('Copy invitation text', 'Copiar texto de la invitación')}
                 </button>
-              </li>
-              <li>
-                <p className="font-medium text-gray-900">3. {t('Follow the answers', 'Sigue las respuestas')}</p>
-                <Link href={eventDashboardPath(locale, created.id)} className="mt-2 inline-block rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-800">
-                  {t('Open the event dashboard →', 'Abrir el panel del evento →')}
-                </Link>
-              </li>
-            </ol>
+              </div>
+              <details className="mt-3 text-sm">
+                <summary className="cursor-pointer text-gray-600">{t('See the suggested text', 'Ver el texto sugerido')}</summary>
+                <pre className="mt-2 whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800">{`${invite.subject}\n\n${invite.body}`}</pre>
+              </details>
+            </div>
+
+            <Link href={eventDashboardPath(locale, created.id)} className="inline-block rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-800">
+              {t('Open the event dashboard to follow the answers →', 'Abrir el panel del evento para seguir las respuestas →')}
+            </Link>
           </section>
         ) : (
           <>
@@ -456,10 +470,15 @@ function Wizard({ locale, ownerEmail }: { locale: Locale; ownerEmail: string | n
                       </div>
                     </div>
                     <p className="mt-4 text-sm text-gray-600">
-                      {t(
-                        `${validPeople.length} people will get a personal link. After “I'll be there” they can make this card:`,
-                        `${validPeople.length} personas van a recibir un enlace personal. Después de “Voy” pueden armar esta tarjeta:`,
-                      )}
+                      {validPeople.length === 1
+                        ? t(
+                            '1 person will get a personal link. After “I\'ll be there” they can make this card:',
+                            '1 persona va a recibir un enlace personal. Después de “Voy” puede armar esta tarjeta:',
+                          )
+                        : t(
+                            `${validPeople.length} people will get a personal link. After “I'll be there” they can make this card:`,
+                            `${validPeople.length} personas van a recibir un enlace personal. Después de “Voy” pueden armar esta tarjeta:`,
+                          )}
                     </p>
                   </div>
                   <div className="mx-auto w-full max-w-[320px]">

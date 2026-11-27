@@ -18,7 +18,8 @@ export type CardPhoto = {
 export type CardContent = {
   headline: string; // "I'M ATTENDING" / "I ATTENDED"
   eventName: string;
-  dateLine: string | null; // "Dec 11, 2026 · Convention Center"
+  dateLine: string | null; // "Dec 11, 2026 · 9:00 AM EST"
+  placeLine?: string | null; // "Walter E. Washington Convention Center"
   organizer: string | null;
   hashtag: string | null;
   personName: string;
@@ -64,6 +65,13 @@ function mix(hex: string, other: string, amount: number): string {
   const b = hexToRgb(other);
   const c = a.map((v, i) => Math.round(v + (b[i] - v) * amount));
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+}
+
+/** Same as mix() but returns #rrggbb (for contrast checks). */
+function mixHex(hex: string, other: string, amount: number): string {
+  const a = hexToRgb(hex);
+  const b = hexToRgb(other);
+  return `#${a.map((v, i) => Math.round(v + (b[i] - v) * amount).toString(16).padStart(2, '0')).join('')}`;
 }
 
 function isDark(hex: string): boolean {
@@ -185,51 +193,78 @@ function drawPartners(ctx: CanvasRenderingContext2D, partners: HTMLImageElement[
   }
 }
 
+/** Fixed layout of the automatic card (fractions of the height; sizes of min(w, h)). */
+function level0Layout(size: Size) {
+  const square = size.w / size.h > 0.95;
+  return square
+    ? { logoY: 0.045, logoH: 0.085, circleY: 0.3, r: 0.13, nameY: 0.565, titleY: 0.605, dividerY: 0.635, band: 0.85 }
+    : { logoY: 0.04, logoH: 0.075, circleY: 0.295, r: 0.155, nameY: 0.535, titleY: 0.572, dividerY: 0.602, band: 0.86 };
+}
+
 /** Where the photo circle sits on a card of this size (for drawing and dragging). */
 export function photoCircle(size: Size, design: CustomDesign | null): { cx: number; cy: number; r: number } {
   if (design) return circleToPx(design.zones.photo, design.bgSize, size);
   const unit = Math.min(size.w, size.h);
-  const square = size.w / size.h > 0.95;
-  return { cx: size.w / 2, cy: size.h * (square ? 0.37 : 0.35), r: unit * (square ? 0.16 : 0.17) };
+  const l = level0Layout(size);
+  return { cx: size.w / 2, cy: size.h * l.circleY, r: unit * l.r };
 }
 
 // ---------- Level 0 ----------
 
 type Theme = {
-  bg: (ctx: CanvasRenderingContext2D, s: Size, accent: string) => void;
+  // Background; `frame` is drawn last, on top of everything.
+  bg: (ctx: CanvasRenderingContext2D, s: Size) => void;
+  frame?: (ctx: CanvasRenderingContext2D, s: Size) => void;
   ink: string;
   muted: string;
   highlight: string;
   ring: string;
   font: string;
-  circleFill: string;
-  // Text over the top area (organizer + headline); differs when it sits on a band.
-  topInk?: string;
-  topHighlight?: string;
+  band: string;
+  bandInk: string;
+  bandMuted: string;
+  pillBg: string;
+  pillInk: string;
+  // Logos are made for light backgrounds: show them on a white plate when the top is dark.
+  logoPlate: boolean;
 };
 
+function onColor(hex: string): { ink: string; muted: string } {
+  return isDark(hex)
+    ? { ink: '#ffffff', muted: 'rgba(255,255,255,0.78)' }
+    : { ink: '#111827', muted: 'rgba(17,24,39,0.7)' };
+}
+
 function theme(style: string, accent: string): Theme {
-  const darkAccent = isDark(accent);
+  const onAccent = onColor(accent);
   switch (style) {
     case 'elegant': {
-      const gold = '#c9a227';
+      const gold = '#d4af37';
+      const dark = mix(accent, '#000000', 0.35);
       return {
         bg: (ctx, s) => {
-          ctx.fillStyle = mix(accent, '#000000', 0.25);
+          ctx.fillStyle = dark;
           ctx.fillRect(0, 0, s.w, s.h);
-          const m = Math.min(s.w, s.h) * 0.035;
+        },
+        frame: (ctx, s) => {
+          const m = Math.min(s.w, s.h) * 0.03;
           ctx.strokeStyle = gold;
-          ctx.lineWidth = Math.max(3, m * 0.12);
+          ctx.lineWidth = Math.max(3, m * 0.14);
           ctx.strokeRect(m, m, s.w - 2 * m, s.h - 2 * m);
-          ctx.lineWidth = Math.max(1, m * 0.04);
-          ctx.strokeRect(m * 1.4, m * 1.4, s.w - 2.8 * m, s.h - 2.8 * m);
+          ctx.lineWidth = Math.max(1, m * 0.05);
+          ctx.strokeRect(m * 1.45, m * 1.45, s.w - 2.9 * m, s.h - 2.9 * m);
         },
         ink: '#ffffff',
         muted: 'rgba(255,255,255,0.78)',
         highlight: gold,
         ring: gold,
         font: SERIF,
-        circleFill: mix(accent, '#ffffff', 0.15),
+        band: mix(accent, '#000000', 0.55),
+        bandInk: '#ffffff',
+        bandMuted: 'rgba(255,255,255,0.75)',
+        pillBg: gold,
+        pillInk: '#1f2937',
+        logoPlate: true,
       };
     }
     case 'bold':
@@ -237,46 +272,56 @@ function theme(style: string, accent: string): Theme {
         bg: (ctx, s) => {
           ctx.fillStyle = accent;
           ctx.fillRect(0, 0, s.w, s.h);
-          ctx.fillStyle = mix(accent, '#ffffff', 0.18);
+          ctx.fillStyle = mix(accent, '#ffffff', 0.16);
           ctx.beginPath();
-          ctx.moveTo(s.w * 0.55, 0);
+          ctx.moveTo(s.w * 0.58, 0);
           ctx.lineTo(s.w, 0);
-          ctx.lineTo(s.w, s.h * 0.45);
+          ctx.lineTo(s.w, s.h * 0.42);
           ctx.closePath();
           ctx.fill();
-          ctx.fillStyle = mix(accent, '#000000', 0.2);
+          ctx.fillStyle = mix(accent, '#000000', 0.18);
           ctx.beginPath();
-          ctx.moveTo(0, s.h * 0.7);
-          ctx.lineTo(0, s.h);
-          ctx.lineTo(s.w * 0.5, s.h);
+          ctx.moveTo(0, s.h * 0.48);
+          ctx.lineTo(0, s.h * 0.86);
+          ctx.lineTo(s.w * 0.32, s.h * 0.86);
           ctx.closePath();
           ctx.fill();
         },
-        ink: darkAccent ? '#ffffff' : '#111827',
-        muted: darkAccent ? 'rgba(255,255,255,0.8)' : 'rgba(17,24,39,0.75)',
-        highlight: darkAccent ? '#fde68a' : '#111827',
+        ink: onAccent.ink,
+        muted: onAccent.muted,
+        highlight: isDark(accent) ? '#fde68a' : '#111827',
         ring: '#ffffff',
         font: SANS,
-        circleFill: mix(accent, '#ffffff', 0.3),
+        band: mix(accent, '#000000', 0.35),
+        bandInk: '#ffffff',
+        bandMuted: 'rgba(255,255,255,0.78)',
+        pillBg: '#ffffff',
+        pillInk: mix(accent, '#000000', 0.2),
+        logoPlate: true,
       };
     case 'academic':
       return {
         bg: (ctx, s) => {
           ctx.fillStyle = '#fbf7ef';
           ctx.fillRect(0, 0, s.w, s.h);
-          const m = Math.min(s.w, s.h) * 0.03;
+        },
+        frame: (ctx, s) => {
+          const m = Math.min(s.w, s.h) * 0.028;
           ctx.strokeStyle = accent;
-          ctx.lineWidth = m * 0.35;
+          ctx.lineWidth = m * 0.32;
           ctx.strokeRect(m, m, s.w - 2 * m, s.h - 2 * m);
-          ctx.lineWidth = Math.max(1, m * 0.06);
-          ctx.strokeRect(m * 1.6, m * 1.6, s.w - 3.2 * m, s.h - 3.2 * m);
         },
         ink: '#1f2937',
         muted: '#4b5563',
         highlight: accent,
         ring: accent,
         font: SERIF,
-        circleFill: mix(accent, '#ffffff', 0.85),
+        band: accent,
+        bandInk: onAccent.ink,
+        bandMuted: onAccent.muted,
+        pillBg: accent,
+        pillInk: onAccent.ink,
+        logoPlate: false,
       };
     case 'corporate':
       return {
@@ -284,18 +329,19 @@ function theme(style: string, accent: string): Theme {
           ctx.fillStyle = '#ffffff';
           ctx.fillRect(0, 0, s.w, s.h);
           ctx.fillStyle = accent;
-          ctx.fillRect(0, 0, s.w, s.h * 0.3);
-          ctx.fillStyle = mix(accent, '#ffffff', 0.85);
-          ctx.fillRect(0, s.h * 0.965, s.w, s.h * 0.035);
+          ctx.fillRect(0, 0, s.w, s.h * 0.27);
         },
         ink: '#0f172a',
         muted: '#475569',
         highlight: accent,
         ring: '#ffffff',
         font: SANS,
-        circleFill: mix(accent, '#ffffff', 0.8),
-        topInk: isDark(accent) ? 'rgba(255,255,255,0.85)' : 'rgba(15,23,42,0.75)',
-        topHighlight: isDark(accent) ? '#ffffff' : '#0f172a',
+        band: mixHex(accent, '#000000', 0.15),
+        bandInk: onColor(mixHex(accent, '#000000', 0.15)).ink,
+        bandMuted: onColor(mixHex(accent, '#000000', 0.15)).muted,
+        pillBg: accent,
+        pillInk: onAccent.ink,
+        logoPlate: true,
       };
     case 'friendly':
       return {
@@ -305,8 +351,8 @@ function theme(style: string, accent: string): Theme {
           const colors = [accent, '#f59e0b', '#10b981', '#ec4899', '#3b82f6'];
           const unit = Math.min(s.w, s.h);
           const dots = [
-            [0.08, 0.06, 0.018], [0.9, 0.1, 0.024], [0.14, 0.5, 0.012], [0.88, 0.46, 0.016],
-            [0.06, 0.88, 0.022], [0.93, 0.84, 0.014], [0.5, 0.03, 0.01], [0.78, 0.95, 0.012],
+            [0.07, 0.05, 0.018], [0.92, 0.09, 0.024], [0.1, 0.42, 0.012], [0.9, 0.4, 0.016],
+            [0.05, 0.7, 0.02], [0.95, 0.74, 0.013], [0.5, 0.025, 0.01], [0.82, 0.58, 0.01],
           ];
           dots.forEach(([x, y, r], i) => {
             ctx.fillStyle = colors[i % colors.length];
@@ -320,7 +366,12 @@ function theme(style: string, accent: string): Theme {
         highlight: accent,
         ring: accent,
         font: SANS,
-        circleFill: '#ffffff',
+        band: accent,
+        bandInk: onAccent.ink,
+        bandMuted: onAccent.muted,
+        pillBg: accent,
+        pillInk: onAccent.ink,
+        logoPlate: false,
       };
     case 'minimal':
     default:
@@ -336,9 +387,39 @@ function theme(style: string, accent: string): Theme {
         highlight: accent,
         ring: accent,
         font: SANS,
-        circleFill: mix(accent, '#ffffff', 0.88),
+        band: accent,
+        bandInk: onAccent.ink,
+        bandMuted: onAccent.muted,
+        pillBg: accent,
+        pillInk: onAccent.ink,
+        logoPlate: false,
       };
   }
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** Event name in up to 2 lines, as large as fits. */
+function fitEventName(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, unit: number, font: string, max = unit * 0.076) {
+  let size = Math.round(max);
+  let lines: string[] = [];
+  while (size > Math.round(unit * 0.04)) {
+    ctx.font = `700 ${size}px ${font}`;
+    lines = wrap(ctx, text, maxWidth, 2);
+    const overflow = lines.some((l) => l.endsWith('…'));
+    if (!overflow) break;
+    size -= 2;
+  }
+  ctx.font = `700 ${size}px ${font}`;
+  return { lines, size };
 }
 
 function drawLevel0(
@@ -349,76 +430,162 @@ function drawLevel0(
   photo: CardPhoto | null,
 ) {
   const t = theme(c.style, c.accent);
-  t.bg(ctx, s, c.accent);
+  const l = level0Layout(s);
   const unit = Math.min(s.w, s.h);
-  const square = s.w / s.h > 0.95;
   const cx = s.w / 2;
-  const maxText = s.w * 0.82;
-  // Vertical rhythm as fractions of the height (tighter on the square card).
-  const y = square
-    ? { logo: 0.06, headline: 0.17, name: 0.6, title: 0.66, event: 0.74, date: 0.84, tag: 0.89, partners: 0.915 }
-    : { logo: 0.06, headline: 0.16, name: 0.57, title: 0.62, event: 0.7, date: 0.8, tag: 0.85, partners: 0.88 };
-
+  const maxText = s.w * 0.8;
+  t.bg(ctx, s);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
 
-  // Logo or organizer name at the top.
-  const logoH = unit * 0.08;
+  // Top: logo (on a white plate when the top is dark), or the organizer's name.
+  const logoTop = s.h * l.logoY;
+  const logoH = s.h * l.logoH;
   if (images.logo) {
-    drawContained(ctx, images.logo, cx - unit * 0.2, s.h * y.logo, unit * 0.4, logoH);
+    const maxW = unit * 0.46;
+    const scale = Math.min(maxW / images.logo.width, (logoH * 0.7) / images.logo.height);
+    const w = images.logo.width * scale;
+    const h = images.logo.height * scale;
+    if (t.logoPlate) {
+      const padX = logoH * 0.35;
+      const plateW = w + padX * 2;
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, cx - plateW / 2, logoTop, plateW, logoH, logoH * 0.22);
+      ctx.fill();
+    }
+    ctx.drawImage(images.logo, cx - w / 2, logoTop + (logoH - h) / 2, w, h);
   } else if (c.organizer) {
-    ctx.fillStyle = t.topInk ?? t.muted;
-    fitFont(ctx, c.organizer.toUpperCase(), maxText, Math.round(unit * 0.03), 16, t.font, 600);
-    ctx.fillText(spaced(c.organizer.toUpperCase()), cx, s.h * y.logo + logoH * 0.7);
+    ctx.fillStyle = t.logoPlate ? '#ffffff' : t.muted;
+    fitFont(ctx, c.organizer.toUpperCase(), maxText, Math.round(unit * 0.032), 16, SANS, 700);
+    ctx.fillText(spaced(c.organizer.toUpperCase()), cx, logoTop + logoH * 0.65);
   }
 
-  // Headline.
-  ctx.fillStyle = t.topHighlight ?? t.highlight;
-  fitFont(ctx, c.headline, maxText, Math.round(unit * 0.045), 20, SANS, 800);
-  ctx.fillText(spaced(c.headline), cx, s.h * y.headline + unit * 0.03);
-
-  // Photo circle with ring.
-  const { r, cy } = photoCircle(s, null);
+  // Photo circle with ring; without a photo, the person's initials.
+  const { cy, r } = photoCircle(s, null);
+  const ringW = unit * 0.012;
   ctx.fillStyle = t.ring;
   ctx.beginPath();
-  ctx.arc(cx, cy, r + unit * 0.012, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r + ringW, 0, Math.PI * 2);
   ctx.fill();
-  drawPhotoCircle(ctx, cx, cy, r, photo, images.logo, c.personName, t.circleFill, t.highlight);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r);
+  if (photo) {
+    const cover = Math.max((2 * r) / photo.image.width, (2 * r) / photo.image.height) * photo.zoom;
+    const w = photo.image.width * cover;
+    const h = photo.image.height * cover;
+    ctx.drawImage(photo.image, cx - w / 2 + photo.offsetX * r, cy - h / 2 + photo.offsetY * r, w, h);
+  } else {
+    // No photo: initials (the logo is already at the top).
+    // Initials need contrast on the white circle: light highlights use a darker accent.
+    ctx.fillStyle = t.highlight.startsWith('#') && isDark(t.highlight) ? t.highlight : mix(c.accent, '#000000', isDark(c.accent) ? 0.1 : 0.45);
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${Math.round(r * 0.75)}px ${SANS}`;
+    ctx.fillText(initials(c.personName) || '★', cx, cy + r * 0.04);
+    ctx.textBaseline = 'alphabetic';
+  }
+  ctx.restore();
 
-  // Name and title.
+  // "I'M ATTENDING" label sitting on the bottom edge of the circle.
+  const pillH = unit * 0.06;
+  ctx.font = `800 ${Math.round(pillH * 0.45)}px ${SANS}`;
+  const pillText = spaced(c.headline);
+  const pillW = Math.min(maxText, ctx.measureText(pillText).width + pillH * 1.2);
+  const pillY = cy + r + ringW - pillH * 0.55;
+  ctx.fillStyle = t.pillBg;
+  roundRect(ctx, cx - pillW / 2, pillY, pillW, pillH, pillH / 2);
+  ctx.fill();
+  ctx.fillStyle = t.pillInk;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(pillText, cx, pillY + pillH / 2 + 1);
+  ctx.textBaseline = 'alphabetic';
+
+  // Name and role.
   ctx.fillStyle = t.ink;
-  fitFont(ctx, c.personName, maxText, Math.round(unit * 0.07), 28, t.font, 700);
-  ctx.fillText(c.personName, cx, s.h * y.name);
+  fitFont(ctx, c.personName, maxText, Math.round(unit * 0.074), 28, t.font, 700);
+  ctx.fillText(c.personName, cx, s.h * l.nameY);
   if (c.personTitle) {
     ctx.fillStyle = t.muted;
-    fitFont(ctx, c.personTitle, maxText, Math.round(unit * 0.035), 18, SANS, 400);
-    ctx.fillText(c.personTitle, cx, s.h * y.title);
+    fitFont(ctx, c.personTitle, maxText, Math.round(unit * 0.033), 18, SANS, 500);
+    ctx.fillText(c.personTitle, cx, s.h * l.titleY);
   }
 
-  // Event name (up to 2 lines), date line, hashtag.
+  // Short divider.
+  ctx.fillStyle = t.highlight;
+  ctx.fillRect(cx - unit * 0.05, s.h * l.dividerY, unit * 0.1, Math.max(3, unit * 0.004));
+
+  // Lower block (event name, hashtag, partner logos), centered between the
+  // divider and the bottom band so there's no empty half.
+  const bandTop = s.h * l.band;
+  const areaTop = s.h * l.dividerY + unit * 0.02;
+  const available = bandTop - areaTop;
+  const partners = images.partners ?? [];
+  const tagH = c.hashtag ? unit * 0.05 : 0;
+  const gap = unit * 0.022;
+  // Shrink the event name, then the partner strip, until the block fits
+  // above the band (the square card has less room).
+  let maxName = unit * 0.076;
+  let partnersH = partners.length > 0 ? unit * 0.09 : 0;
+  let name = fitEventName(ctx, c.eventName, maxText, unit, t.font, maxName);
+  let lineH = name.size * 1.15;
+  // Extra gap at the end keeps the partner strip off the band.
+  const measure = () => name.lines.length * lineH + tagH + (partnersH ? partnersH + gap * 2 : 0);
+  while (measure() > available && (maxName > unit * 0.046 || partnersH > unit * 0.06)) {
+    if (maxName > unit * 0.046) maxName -= unit * 0.004;
+    else partnersH = Math.max(unit * 0.06, partnersH - unit * 0.005);
+    name = fitEventName(ctx, c.eventName, maxText, unit, t.font, maxName);
+    lineH = name.size * 1.15;
+  }
+  const blockH = measure();
+  let y = areaTop + Math.max(0, (bandTop - areaTop - blockH) / 2);
   ctx.fillStyle = t.ink;
-  ctx.font = `700 ${Math.round(unit * 0.05)}px ${t.font}`;
-  const lines = wrap(ctx, c.eventName, maxText, 2);
-  const lineH = unit * 0.06;
-  lines.forEach((line, i) => ctx.fillText(line, cx, s.h * y.event + i * lineH));
-  if (c.dateLine) {
-    ctx.fillStyle = t.muted;
-    fitFont(ctx, c.dateLine, maxText, Math.round(unit * 0.032), 16, SANS, 500);
-    ctx.fillText(c.dateLine, cx, s.h * y.date + (lines.length - 1) * lineH * 0.6);
+  ctx.font = `700 ${name.size}px ${t.font}`;
+  for (const line of name.lines) {
+    y += lineH;
+    ctx.fillText(line, cx, y - lineH * 0.2);
   }
   if (c.hashtag) {
     ctx.fillStyle = t.highlight;
-    fitFont(ctx, c.hashtag, maxText, Math.round(unit * 0.032), 16, SANS, 700);
-    ctx.fillText(c.hashtag, cx, s.h * y.tag + (lines.length - 1) * lineH * 0.6);
+    fitFont(ctx, c.hashtag, maxText, Math.round(unit * 0.034), 16, SANS, 700);
+    y += tagH;
+    ctx.fillText(c.hashtag, cx, y - tagH * 0.25);
+  }
+  if (partnersH) {
+    y += gap;
+    const stripW = s.w * 0.84;
+    ctx.fillStyle = '#ffffff';
+    roundRect(ctx, cx - stripW / 2, y, stripW, partnersH, partnersH * 0.2);
+    ctx.fill();
+    drawPartners(ctx, partners, cx, y + partnersH * 0.2, stripW * 0.9, partnersH * 0.6);
   }
 
-  // Partner logos and the small credit line.
-  drawPartners(ctx, images.partners ?? [], cx, s.h * y.partners + (lines.length - 1) * lineH * 0.3, s.w * 0.84, unit * 0.05);
-  ctx.fillStyle = t.muted;
-  ctx.globalAlpha = 0.7;
-  ctx.font = `400 ${Math.round(unit * 0.018)}px ${SANS}`;
-  ctx.fillText(c.footer, cx, s.h * 0.975);
+  // Bottom band: date, time and place.
+  ctx.fillStyle = t.band;
+  ctx.fillRect(0, bandTop, s.w, s.h - bandTop);
+  const bandH = s.h - bandTop;
+  const place = c.placeLine ?? null;
+  if (c.dateLine) {
+    ctx.fillStyle = t.bandInk;
+    fitFont(ctx, c.dateLine, maxText, Math.round(unit * 0.04), 18, SANS, 700);
+    ctx.fillText(c.dateLine, cx, bandTop + bandH * (place ? 0.42 : 0.58));
+  }
+  if (place) {
+    ctx.fillStyle = t.bandMuted;
+    fitFont(ctx, place, maxText, Math.round(unit * 0.03), 16, SANS, 500);
+    ctx.fillText(place, cx, bandTop + bandH * (c.dateLine ? 0.72 : 0.58));
+  }
+  ctx.fillStyle = t.bandMuted;
+  ctx.globalAlpha = 0.6;
+  ctx.font = `400 ${Math.round(unit * 0.016)}px ${SANS}`;
+  ctx.textAlign = 'right';
+  ctx.fillText(c.footer, s.w - unit * 0.05, s.h - unit * 0.022);
+  ctx.textAlign = 'center';
   ctx.globalAlpha = 1;
+
+  t.frame?.(ctx, s);
 }
 
 // ---------- Level 2 ----------
