@@ -196,6 +196,23 @@ export async function listEventsWithCounts(ownerId: string): Promise<EventSummar
   return events.map((e) => ({ ...e, counts: counts.get(e.id)! }));
 }
 
+/**
+ * Deletes an event with its people and survey answers. Unsubscribes stay:
+ * they belong to the organizer, not to the event.
+ */
+export async function deleteEvent(ownerId: string, id: string): Promise<boolean> {
+  if (useMemory()) {
+    const event = memory.events.get(id);
+    if (!event || event.ownerId !== ownerId) return false;
+    memory.events.delete(id);
+    for (const [rid, r] of Array.from(memory.recipients.entries())) if (r.eventId === id) memory.recipients.delete(rid);
+    return true;
+  }
+  const { data, error } = await db().from('events').delete().eq('id', id).eq('owner_id', ownerId).select('id');
+  if (error) throw new EventStoreError(error.message);
+  return (data ?? []).length > 0;
+}
+
 /** Deletes events past their retention date (daily cron). */
 export async function deleteExpiredEvents(): Promise<void> {
   if (!isSupabaseServiceConfigured()) return;

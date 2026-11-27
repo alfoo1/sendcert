@@ -9,7 +9,7 @@ import type { ShareCardEvent } from '@/components/events/ShareCardMaker';
 import { bucketOf, countStatuses, type Bucket } from '@/lib/eventMode/logic';
 import type { EventRecipient, ShareCardSettings } from '@/lib/eventMode/types';
 import { isValidEmail } from '@/lib/validation';
-import { LOCALE_TAG, tx, type Locale } from '@/lib/i18n';
+import { LOCALE_TAG, localizePath, tx, type Locale } from '@/lib/i18n';
 
 type Filter = 'all' | Bucket | 'unsubscribed';
 
@@ -42,6 +42,7 @@ export default function EventDashboard({
   const [addResult, setAddResult] = useState<string | null>(null);
   const [cardOpen, setCardOpen] = useState(false);
   const [sendOpen, setSendOpen] = useState(false);
+  const [deleteState, setDeleteState] = useState<'idle' | 'confirm' | 'deleting' | 'error'>('idle');
   const [card, setCard] = useState<ShareCardSettings>(shareCard);
   const [cardSaving, setCardSaving] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
@@ -114,6 +115,21 @@ export default function EventDashboard({
       if (res.ok) router.refresh();
     } catch {
       setCardSaving('error');
+    }
+  }
+
+  async function deleteEvent() {
+    setDeleteState('deleting');
+    try {
+      const res = await fetch(`/api/events/${eventId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setDeleteState('error');
+        return;
+      }
+      router.push(localizePath('/dashboard', locale));
+      router.refresh();
+    } catch {
+      setDeleteState('error');
     }
   }
 
@@ -271,6 +287,35 @@ export default function EventDashboard({
             </div>
           </div>
         )}
+      </section>
+
+      <section className="rounded-xl border border-red-100 bg-white p-5 text-sm">
+        <p className="font-medium text-gray-900">{t('Delete event', 'Eliminar evento')}</p>
+        <p className="mt-1 text-gray-600">
+          {t(
+            'Deletes the event, its people and their answers. Personal links stop working. Unsubscribes are kept.',
+            'Elimina el evento, sus personas y sus respuestas. Los enlaces personales dejan de funcionar. Las bajas de correo se conservan.',
+          )}
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {deleteState === 'confirm' || deleteState === 'deleting' ? (
+            <>
+              <button type="button" disabled={deleteState === 'deleting'} onClick={deleteEvent} className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                {deleteState === 'deleting'
+                  ? t('Deleting…', 'Eliminando…')
+                  : t(`Yes, delete it and its ${people.length} people`, `Sí, eliminarlo con sus ${people.length} personas`)}
+              </button>
+              <button type="button" onClick={() => setDeleteState('idle')} className="text-gray-600 underline">
+                {t('Cancel', 'Cancelar')}
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setDeleteState('confirm')} className="rounded-lg border border-red-200 px-4 py-2 font-medium text-red-700 hover:bg-red-50">
+              {t('Delete event…', 'Eliminar evento…')}
+            </button>
+          )}
+          {deleteState === 'error' && <span className="text-red-600">{t('Could not delete it. Try again.', 'No se pudo eliminar. Inténtalo de nuevo.')}</span>}
+        </div>
       </section>
     </div>
   );
