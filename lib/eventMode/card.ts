@@ -1,5 +1,5 @@
 import type { Locale } from '@/lib/i18n';
-import { formatEventDate, hashtagText } from '@/lib/eventMode/format';
+import { formatEventDate, formatEventTime, hashtagText } from '@/lib/eventMode/format';
 import type { EventRecord } from '@/lib/eventMode/types';
 import type { ShareCardEvent } from '@/components/events/ShareCardMaker';
 
@@ -12,7 +12,8 @@ export function shareCardEvent(e: EventRecord, locale: Locale): ShareCardEvent {
       : null;
   return {
     name: e.name,
-    dateLine: [formatEventDate(e, locale, 'short'), e.venue].filter(Boolean).join(' · ') || null,
+    dateLine: [formatEventDate(e, locale, 'short'), formatEventTime(e, locale)].filter(Boolean).join(' · ') || null,
+    placeLine: e.venue,
     organizer: e.organizerName,
     hashtag: hashtagText(e.hashtag),
     accent: e.accentColor,

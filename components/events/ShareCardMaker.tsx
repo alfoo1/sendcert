@@ -18,6 +18,7 @@ import { tx, type Locale } from '@/lib/i18n';
 export type ShareCardEvent = {
   name: string;
   dateLine: string | null;
+  placeLine?: string | null;
   organizer: string | null;
   hashtag: string | null;
   accent: string;
@@ -98,6 +99,7 @@ export default function ShareCardMaker({
         phase === 'before' ? t("I'M ATTENDING", 'VOY A ASISTIR') : t('I ATTENDED', 'ASISTÍ'),
       eventName: event.name,
       dateLine: event.dateLine,
+      placeLine: event.placeLine ?? null,
       organizer: event.organizer,
       hashtag: event.hashtag,
       personName: name.trim() || t('Your name', 'Tu nombre'),
