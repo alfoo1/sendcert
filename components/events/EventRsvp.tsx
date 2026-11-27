@@ -109,7 +109,7 @@ export default function EventRsvp({
         </section>
       )}
 
-      {rsvp === 'yes' && (
+      {rsvp === 'yes' && !declining && (
         <>
           <section className="rounded-2xl border border-green-200 bg-green-50 p-5">
             <p className="text-lg font-semibold text-green-900">{t('See you there! 🎉', '¡Nos vemos ahí! 🎉')}</p>
